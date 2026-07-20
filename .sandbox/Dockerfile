@@ -42,3 +42,15 @@ RUN bbin install https://github.com/realgenekim/clj-surgeon.git --git/sha "${CLJ
 ARG KNOT_VERSION=0.9.0
 RUN bbin install https://github.com/UniSoma/knot.git --tag "v${KNOT_VERSION}"
 # <<< knot (managed) <<<
+
+# >>> playwright >>>
+# Headless Chromium for in-container verification (e.g. driving the shadow-cljs
+# dev app). Browsers go to a fixed system path so every user/session finds them;
+# --with-deps pulls the GTK/ATK/X11 system libraries the foundation image lacks.
+ARG PLAYWRIGHT_VERSION=1.61.1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN npm install -g "playwright@${PLAYWRIGHT_VERSION}"; \
+    playwright install --with-deps chromium; \
+    chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"; \
+    playwright --version
+# <<< playwright <<<
