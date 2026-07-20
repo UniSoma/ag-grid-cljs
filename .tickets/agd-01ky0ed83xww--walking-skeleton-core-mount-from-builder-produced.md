@@ -1,17 +1,18 @@
 ---
 id: agd-01ky0ed83xww
 title: 'Walking skeleton: core mount from builder-produced EDN options'
-status: open
+status: in_progress
 type: task
 priority: 1
 mode: hitl
 created: '2026-07-20T19:00:25.852612916Z'
-updated: '2026-07-20T19:00:25.852612916Z'
+updated: '2026-07-20T20:14:49.696397107Z'
 parent: agd-01ky0ebxg01e
 tags:
 - wayfinder:prototype
 deps:
 - agd-01ky0eck96vn
+assignee: jonas
 ---
 
 ## Description

@@ -1,0 +1,12 @@
+{:deps {:aliases [:dev]}
+
+ :dev-http {8080 "src/dev/public"}
+
+ :builds
+ {:dev-app {:target     :browser
+            :output-dir "src/dev/public/js"
+            :asset-path "/js"
+            :modules    {:main {:init-fn ag-grid-cljs.dev.app/init}}}
+
+  :test {:target    :node-test
+         :output-to "target/node-tests.js"}}}
