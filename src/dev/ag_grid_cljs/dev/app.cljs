@@ -1,8 +1,14 @@
 (ns ag-grid-cljs.dev.app
-  "WALKING SKELETON dev app (ticket agd-01ky0ed83xww) — not library code.
-  Proves: builder-produced EDN options -> conversion contract -> createGrid."
+  "WALKING SKELETON dev app — not library code.
+  Proves: builder-produced EDN options -> conversion contract -> createGrid
+  (ticket agd-01ky0ed83xww) and the three cell-renderer styles
+  (ticket agd-01ky0ed8adbf): plain fn shorthand, hiccup dom-renderer,
+  React local-root renderer."
   (:require [ag-grid-cljs.core :as grid]
-            ["ag-grid-community" :refer [AllCommunityModule]]))
+            [ag-grid-cljs.render :as render]
+            [ag-grid-cljs.react :as agr]
+            ["ag-grid-community" :refer [AllCommunityModule]]
+            ["react" :as react]))
 
 ;; Consumer owns module registration (must run before the first grid).
 (defonce _modules (grid/register! AllCommunityModule))
@@ -15,22 +21,52 @@
        #js {:firstName "Edsger" :lastName "Dijkstra"  :born 1930 :salary 105000}
        #js {:firstName "Barbara" :lastName "Liskov"   :born 1939 :salary 125000}])
 
+;; Style 1 — plain fn shorthand (AG Grid's ICellRendererFunc): the converter
+;; auto-wraps it, params arrive as a lazy kebab bean, a string return is used
+;; as the cell's HTML. No helper needed.
+(defn born-renderer [p]
+  (str "★ " (:value p)))
+
+;; Style 2 — hiccup via dom-renderer: a component class under the hood
+;; (init/getGui/refresh), refresh swaps content in place.
+(defn salary-renderer [p]
+  (let [salary (:value p)
+        pct    (* 100 (/ (- salary 100000) 30000))]
+    [:div {:style {:display "flex" :align-items "center" :gap "6px"}
+           :class "salary-cell"}
+     [:div {:style {:width      "60px" :height "8px"
+                    :background "#e0e0e0" :border-radius "4px"}}
+      [:div {:style {:width         (str pct "%") :height "100%"
+                     :background    "#4caf50" :border-radius "4px"}}]]
+     [:span (str "$" salary)]]))
+
+;; Style 3 — React component in a per-cell local root: local state (the
+;; click count) survives grid refreshes because refresh re-renders into the
+;; same root instead of re-initing.
+(defn- counter-fc [props]
+  (let [[n set-n] (react/useState 0)]
+    (react/createElement
+     "button"
+     #js {:className "counter-btn"
+          :onClick   #(set-n (inc n))}
+     (str (unchecked-get props "name") ": " n " clicks"))))
+
+(defn actions-renderer [p]
+  (react/createElement counter-fc #js {:name (-> p :data :first-name)}))
+
 (def opts
   (-> (grid/options)
       (grid/with-default-col-def {:sortable true :flex 1})
       (grid/with-columns
-        [;; keyword in value position: :first-name -> "firstName"
-         {:field :first-name}
+        [{:field :first-name}
          {:field :last-name}
-         {:field :born}
-         {:field  :salary
-          ;; fn survives conversion; params arrive as a lazy kebab bean —
-          ;; (:col-def p) reads the camelCase colDef prop, nested access works.
-          :value-formatter
-          (fn [p]
-            (str "$" (:value p) " (" (name (-> p :col-def :field)) ")"))}])
+         {:field         :born
+          :cell-renderer born-renderer}
+         {:field         :salary
+          :cell-renderer (render/dom-renderer salary-renderer)}
+         {:header-name   "Actions"
+          :cell-renderer (agr/react-renderer actions-renderer)}])
       (grid/with-row-data row-data)
-      ;; keyword enum value: :auto-height -> "autoHeight"
       (assoc :dom-layout :auto-height)))
 
 (defonce api* (atom nil))
