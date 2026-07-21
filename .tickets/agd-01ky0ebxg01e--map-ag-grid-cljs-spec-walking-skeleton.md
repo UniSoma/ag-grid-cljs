@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-07-20T18:59:42.208243308Z'
-updated: '2026-07-21T01:40:10.328942638Z'
+updated: '2026-07-21T02:24:43.817347659Z'
 tags:
 - wayfinder:map
 ---
@@ -44,12 +44,13 @@ Resolved tickets:
 - [Conversion boundary rules: what converts, what passes through untouched](agd-01ky0eck96vn) — mechanical kebab→camel (registry = dev warnings only); type-driven recursion (CLJS maps/sequentials convert, everything else passes untouched, string keys verbatim); keywords translate in value position too (keyword = AG Grid vocabulary, string = verbatim); `(ag/raw x)` is the sole escape hatch; nil→null with key kept; sets pass through + dev-warn; callbacks receive lazy kebab-keyed beans and returns are forward-converted, with `raw` as the hot-path opt-out; cljs-bean slice vendored for zero deps. Full contract in the ticket's resolution note.
 - [Walking skeleton: core mount from builder-produced EDN options](agd-01ky0ed83xww) — core design proven end to end: builder-produced EDN → conversion contract → createGrid, verified by node contract tests plus a headless mount check (fn survives conversion with lazy kebab bean params and converted return). Scaffold settled: src/main library + src/dev dev app + src/test, deps.edn with :dev alias, shadow-cljs :dev-app/:test builds, `npm run dev` / `npm test`. Builders are plain-map sugar over the EDN options map; cljs-bean rides as a direct dep pending vendoring; `ag-grid-cljs.*` namespaces provisional pending the naming ticket. Full resolution in the ticket's notes.
 - [Walking skeleton: CLJS custom cell renderer helper](agd-01ky0ed8adbf) — three renderer tiers committed, no wrapper-owned DOM engine: bare fn = vanilla escape hatch (innerHTML string semantics kept, dev-warn on HTML-looking returns); `render/renderer` lifecycle-map + engine-free `dom-renderer` (string = text; BYO DOM by fn composition — mini hiccup engine cut); `react/react-renderer` with per-cell local root (portal variant deferred to the Fulcro skeleton ticket). No typed-renderer catalog — AG Grid cell data types + name-registered built-ins cover it. Full resolution in the ticket's notes.
+- [Walking skeleton: Fulcro integration with transactional data updates](agd-01ky0ed8766f) — Fulcro bar proven with zero library support: class-based mount-point host (sCU false; confirmed canonical per the Fulcro guide, hooks variant weaker); explicit data channel (new core fns `set-rows!`/`transact!`/`destroy!`) preserves scroll/selection/focus across :add/:update transactions and set-rows! full swaps (AG Grid diffs by :get-row-id); transact!-from-a-cell with an explicit app reference is one line and acceptable — no portal variant. Dual bookkeeping eliminable via set-rows!-from-db as the default consumer pattern; auto-diff watcher deferred to the options-diffing ticket. Full resolution in the ticket's notes.
 
 ## Not yet specified
 
 - Spec assembly: format and home of the final design spec (docs/adr? single spec doc?) once decisions accumulate.
 - Docs/cljdoc strategy for builders and the reference table.
-- Testing story for the library (unit vs browser; what CI looks like) — the skeleton's node-test contract suite is a first data point.
+- Testing story for the library (unit vs browser; what CI looks like) — data points so far: the skeleton's node-test contract suite plus per-ticket Playwright headless-Chromium checks (scripts kept out of the repo).
 - Theming/CSS story (AG Grid Theming API vs CSS files; how the wrapper exposes it).
 
 ## Out of scope
