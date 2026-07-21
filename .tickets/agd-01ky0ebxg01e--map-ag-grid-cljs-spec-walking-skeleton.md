@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-07-20T18:59:42.208243308Z'
-updated: '2026-07-21T02:24:43.817347659Z'
+updated: '2026-07-21T02:36:38.167765725Z'
 tags:
 - wayfinder:map
 ---
@@ -23,6 +23,7 @@ A locked design spec plus a walking skeleton for **io.github.unisoma/ag-grid-clj
 - Toolchain floor: shadow-cljs >= 3.3.0 (ClojureScript 1.12.116+). AG Grid npm packages are peer dependencies, never bundled.
 - Zero runtime dependencies besides the AG Grid peer packages: needed library code (cljs-bean slice) is vendored under an internal namespace, EPL headers retained, THIRD-PARTY.md notice.
 - Research findings are recorded as notes on the research ticket itself (file-based tracker; no side branches).
+- Side research: `docs/research/ag-grid-react-wrapper.md` — sourced analysis of ag-grid-react vs vanilla core. Corroborates the Foundation/Update-model/cell-renderer decisions; informs the options-diffing and Reagent/UIx tickets (see notes on those tickets). Version-pinned ~v31–32 wrapper source — re-check version-sensitive claims at implementation time.
 - Map maintenance: this body is multi-section — update it with `knot update <map-id> --body`, never `--description` (that replaces only the ## Description section and stacks duplicates).
 - Planning-first: tickets resolve decisions; the walking-skeleton prototype tickets are the only execution carried by this map.
 

@@ -6,7 +6,7 @@ type: task
 priority: 1
 mode: hitl
 created: '2026-07-20T19:00:26.061235644Z'
-updated: '2026-07-21T01:38:41.238567937Z'
+updated: '2026-07-21T02:37:00.804149476Z'
 closed: '2026-07-21T01:38:41.238567937Z'
 parent: agd-01ky0ebxg01e
 tags:
@@ -57,3 +57,7 @@ Verified: 14 node tests / 38 assertions; headless Chromium 11/11 (all three styl
 **2026-07-21T01:38:41.238567937Z**
 
 Cell-renderer ergonomics decided: bare fn = vanilla escape hatch (innerHTML semantics kept, dev-warn on HTML-looking string returns); render/renderer lifecycle-map + engine-free dom-renderer (string=text, BYO DOM via composition — hiccup engine cut); react/react-renderer committed with per-cell local root, portal variant deferred to Fulcro skeleton. No typed-renderer catalog (AG Grid cell data types + named built-ins cover it). 14 tests + 11/11 headless green.
+
+**2026-07-21T02:37:00.804149476Z**
+
+Post-resolution corroboration: docs/research/ag-grid-react-wrapper.md §3 independently confirms the tier design — plain-DOM renderer (option c) is the safe default; per-cell React root (option b, our react-renderer) works but is leak-prone: React issue #26281 shows nested createRoot() roots are NOT unmounted when the parent root unmounts and their effect cleanups don't run, so react-renderer must wire explicit root.unmount() to cell-destroy (virtualization destroys off-screen cells constantly). Reproducing ReactUI-style direct mounting (option a) is not viable — AG Grid's React tree is a private root with no injection point.
