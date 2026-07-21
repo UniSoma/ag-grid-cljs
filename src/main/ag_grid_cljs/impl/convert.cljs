@@ -68,6 +68,25 @@
   (fn [& args]
     (->js (apply f (map (fn [a] (if (object? a) (params-bean a) a)) args)))))
 
+(defn- wrap-renderer-fn
+  "Like wrap-fn, but dev-warns when the fn returns an HTML-looking string:
+  vanilla AG Grid injects a function renderer's string return as innerHTML
+  (documented vanilla behavior — the bare fn is the escape hatch with
+  vanilla semantics). Structured cells belong in the renderer helpers."
+  [f]
+  (let [wrapped (wrap-fn f)]
+    (fn [& args]
+      (let [ret (apply wrapped args)]
+        (when (and ^boolean goog.DEBUG (string? ret) (str/includes? ret "<"))
+          (warn "cell renderer fn returned an HTML-looking string; AG Grid "
+                "injects it via innerHTML (XSS risk with untrusted data). "
+                "Return a DOM node, or use the renderer helpers for "
+                "string-means-text semantics."))
+        ret))))
+
+(defn- renderer-prop? [prop]
+  (or (= prop "cellRenderer") (.endsWith ^string prop "CellRenderer")))
+
 (defn- key->prop [k]
   (when (namespace k)
     (warn "namespaced keyword " k " converts by name only; namespace dropped"))
@@ -85,7 +104,9 @@
                   (coll? v) (not (raw? v)))
          (warn prop " received a CLJS collection; row data is JS by contract — "
                "pass a JS array (or wrap with raw / clj->js if intentional)"))
-       (unchecked-set o prop (->js v))
+       (unchecked-set o prop (if (and (renderer-prop? prop) (fn? v) (not (raw? v)))
+                               (wrap-renderer-fn v)
+                               (->js v)))
        o))
    #js {}
    m))

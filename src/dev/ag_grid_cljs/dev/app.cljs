@@ -27,18 +27,27 @@
 (defn born-renderer [p]
   (str "★ " (:value p)))
 
-;; Style 2 — hiccup via dom-renderer: a component class under the hood
-;; (init/getGui/refresh), refresh swaps content in place.
+;; Style 2 — dom-renderer: a component class under the hood
+;; (init/getGui/refresh), refresh swaps content in place. DOM building is
+;; BYO: any hiccup->DOM fn composes here; plain createElement shown.
+(defn- el [tag style-str text]
+  (let [e (js/document.createElement tag)]
+    (set! (.-cssText (.-style e)) style-str)
+    (when text (set! (.-textContent e) text))
+    e))
+
 (defn salary-renderer [p]
   (let [salary (:value p)
-        pct    (* 100 (/ (- salary 100000) 30000))]
-    [:div {:style {:display "flex" :align-items "center" :gap "6px"}
-           :class "salary-cell"}
-     [:div {:style {:width      "60px" :height "8px"
-                    :background "#e0e0e0" :border-radius "4px"}}
-      [:div {:style {:width         (str pct "%") :height "100%"
-                     :background    "#4caf50" :border-radius "4px"}}]]
-     [:span (str "$" salary)]]))
+        pct    (* 100 (/ (- salary 100000) 30000))
+        root   (el "div" "display:flex;align-items:center;gap:6px" nil)
+        track  (el "div" "width:60px;height:8px;background:#e0e0e0;border-radius:4px" nil)
+        bar    (el "div" (str "width:" pct "%;height:100%;background:#4caf50;border-radius:4px") nil)
+        label  (el "span" "" (str "$" salary))]
+    (.setAttribute root "class" "salary-cell")
+    (.appendChild track bar)
+    (.appendChild root track)
+    (.appendChild root label)
+    root))
 
 ;; Style 3 — React component in a per-cell local root: local state (the
 ;; click count) survives grid refreshes because refresh re-renders into the

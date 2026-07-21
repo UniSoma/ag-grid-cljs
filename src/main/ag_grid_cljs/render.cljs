@@ -9,40 +9,15 @@
   prototype and silently degrade the class to a function renderer."
   (:require [ag-grid-cljs.impl.convert :as convert]))
 
-;; --- minimal hiccup->DOM ------------------------------------------------------
-;; Walking-skeleton grade: [:tag attrs? & children]; :style takes a map,
-;; fn-valued :on-* attrs become event listeners, children may be strings,
-;; numbers, elements, or nested vectors.
-
-(declare dom-el)
+;; No DOM-building engine lives here: consumers bring their own (any
+;; hiccup->DOM fn composes with the render fn). Anything that isn't a
+;; js/Node renders as text — string means text everywhere in the wrapper;
+;; HTML-string semantics stays behind the bare-fn vanilla escape hatch.
 
 (defn- ->node [x]
-  (cond
-    (vector? x)              (dom-el x)
-    (instance? js/Node x)    x
-    :else                    (js/document.createTextNode (str x))))
-
-(defn- set-attr! [el k v]
-  (let [n (name k)]
-    (cond
-      (= k :style)                  (doseq [[sk sv] v]
-                                      (.setProperty (.-style el) (name sk) (str sv)))
-      (and (fn? v)
-           (.startsWith n "on-"))   (.addEventListener el (subs n 3) v)
-      :else                         (.setAttribute el n (str v)))))
-
-(defn dom-el
-  "Build a DOM element from minimal hiccup."
-  [[tag & body]]
-  (let [el       (js/document.createElement (name tag))
-        [attrs children] (if (map? (first body))
-                           [(first body) (rest body)]
-                           [nil body])]
-    (doseq [[k v] attrs] (set-attr! el k v))
-    (doseq [c children
-            :when (some? c)]
-      (.appendChild el (->node c)))
-    el))
+  (if (instance? js/Node x)
+    x
+    (js/document.createTextNode (str x))))
 
 ;; --- lifecycle-map renderer ---------------------------------------------------
 
@@ -80,12 +55,13 @@
           (fn [] (this-as ^js t (when destroy (destroy (.-agCljsState t))))))
     (convert/raw ctor)))
 
-;; --- hiccup/DOM renderer ------------------------------------------------------
+;; --- DOM renderer -------------------------------------------------------------
 
 (defn dom-renderer
-  "High-level helper: (fn [params-bean] hiccup | js/Node | string) ->
-  cellRenderer class (raw). The render result lives inside a <span>
-  container so refresh can swap content in place (returns true)."
+  "High-level helper: (fn [params-bean] js/Node | string) -> cellRenderer
+  class (raw). A string renders as a text node — never HTML. The render
+  result lives inside a <span> container so refresh can swap content in
+  place (returns true)."
   [render-fn]
   (renderer
    {:init    (fn [state params]

@@ -65,3 +65,22 @@
   (let [f (fn [x] x)
         wrapped (unchecked-get (c/->js {:f f}) "f")]
     (is (= 7 (wrapped 7)) "non-object args pass to the fn as-is")))
+
+(deftest renderer-fn-html-string-warning
+  ;; decision on agd-01ky0ed8adbf: the bare fn in a *CellRenderer position is
+  ;; the vanilla escape hatch (innerHTML semantics) — dev-warn when its string
+  ;; return looks like HTML; other fn positions (value-formatter) stay silent.
+  (let [warnings   (atom [])
+        orig-warn  js/console.warn]
+    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
+    (try
+      (let [o (c/->js {:cell-renderer   (fn [_] "<b>hi</b>")
+                       :value-formatter (fn [_] "a < b")})]
+        ((unchecked-get o "cellRenderer") #js {})
+        (is (= 1 (count (filter #(re-find #"HTML-looking" %) @warnings)))
+            "cellRenderer fn string return with < warns")
+        ((unchecked-get o "valueFormatter") #js {})
+        (is (= 1 (count (filter #(re-find #"HTML-looking" %) @warnings)))
+            "value-formatter string return never warns"))
+      (finally
+        (set! js/console.warn orig-warn)))))

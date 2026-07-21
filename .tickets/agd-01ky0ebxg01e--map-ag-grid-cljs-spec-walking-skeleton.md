@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-07-20T18:59:42.208243308Z'
-updated: '2026-07-20T20:38:53.812080272Z'
+updated: '2026-07-21T01:40:10.328942638Z'
 tags:
 - wayfinder:map
 ---
@@ -43,6 +43,7 @@ Resolved tickets:
 - [Research: options-surface extraction from AG Grid TypeScript definitions](agd-01ky0eck6erk) — feasible and cheap: GridOptions keys, event names, and the event→handler map are runtime constants in ag-grid-community; only ColDef needs a small ts-morph pass; churn is additive-only (~8–20 keys/major, v33–v36); recommended output is per-version EDN keyed by kebab keyword with :camel/:type/:deprecated/:doc plus an events block — all 726 keys round-trip kebab↔camel with zero collisions. Full sourced report in the ticket's notes.
 - [Conversion boundary rules: what converts, what passes through untouched](agd-01ky0eck96vn) — mechanical kebab→camel (registry = dev warnings only); type-driven recursion (CLJS maps/sequentials convert, everything else passes untouched, string keys verbatim); keywords translate in value position too (keyword = AG Grid vocabulary, string = verbatim); `(ag/raw x)` is the sole escape hatch; nil→null with key kept; sets pass through + dev-warn; callbacks receive lazy kebab-keyed beans and returns are forward-converted, with `raw` as the hot-path opt-out; cljs-bean slice vendored for zero deps. Full contract in the ticket's resolution note.
 - [Walking skeleton: core mount from builder-produced EDN options](agd-01ky0ed83xww) — core design proven end to end: builder-produced EDN → conversion contract → createGrid, verified by node contract tests plus a headless mount check (fn survives conversion with lazy kebab bean params and converted return). Scaffold settled: src/main library + src/dev dev app + src/test, deps.edn with :dev alias, shadow-cljs :dev-app/:test builds, `npm run dev` / `npm test`. Builders are plain-map sugar over the EDN options map; cljs-bean rides as a direct dep pending vendoring; `ag-grid-cljs.*` namespaces provisional pending the naming ticket. Full resolution in the ticket's notes.
+- [Walking skeleton: CLJS custom cell renderer helper](agd-01ky0ed8adbf) — three renderer tiers committed, no wrapper-owned DOM engine: bare fn = vanilla escape hatch (innerHTML string semantics kept, dev-warn on HTML-looking returns); `render/renderer` lifecycle-map + engine-free `dom-renderer` (string = text; BYO DOM by fn composition — mini hiccup engine cut); `react/react-renderer` with per-cell local root (portal variant deferred to the Fulcro skeleton ticket). No typed-renderer catalog — AG Grid cell data types + name-registered built-ins cover it. Full resolution in the ticket's notes.
 
 ## Not yet specified
 
@@ -50,7 +51,6 @@ Resolved tickets:
 - Docs/cljdoc strategy for builders and the reference table.
 - Testing story for the library (unit vs browser; what CI looks like) — the skeleton's node-test contract suite is a first data point.
 - Theming/CSS story (AG Grid Theming API vs CSS files; how the wrapper exposes it).
-- Reagent/UIx thin adapters — may end up out of scope; revisit after cell-renderer helper lands.
 
 ## Out of scope
 
