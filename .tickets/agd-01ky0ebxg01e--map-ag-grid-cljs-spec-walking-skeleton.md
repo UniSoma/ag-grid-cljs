@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-07-20T18:59:42.208243308Z'
-updated: '2026-07-21T16:47:29.857135677Z'
+updated: '2026-07-21T19:10:29.081057228Z'
 tags:
 - wayfinder:map
 ---
@@ -47,11 +47,12 @@ Resolved tickets:
 - [Walking skeleton: CLJS custom cell renderer helper](agd-01ky0ed8adbf) — three renderer tiers committed, no wrapper-owned DOM engine: bare fn = vanilla escape hatch (innerHTML string semantics kept, dev-warn on HTML-looking returns); `render/renderer` lifecycle-map + engine-free `dom-renderer` (string = text; BYO DOM by fn composition — mini hiccup engine cut); `react/react-renderer` with per-cell local root (portal variant deferred to the Fulcro skeleton ticket). No typed-renderer catalog — AG Grid cell data types + name-registered built-ins cover it. Full resolution in the ticket's notes.
 - [Walking skeleton: Fulcro integration with transactional data updates](agd-01ky0ed8766f) — Fulcro bar proven with zero library support: class-based mount-point host (sCU false; confirmed canonical per the Fulcro guide, hooks variant weaker); explicit data channel (new core fns `set-rows!`/`transact!`/`destroy!`) preserves scroll/selection/focus across :add/:update transactions and set-rows! full swaps (AG Grid diffs by :get-row-id); transact!-from-a-cell with an explicit app reference is one line and acceptable — no portal variant. Dual bookkeeping eliminable via set-rows!-from-db as the default consumer pattern; auto-diff watcher deferred to the options-diffing ticket. Full resolution in the ticket's notes.
 - [Namespace layout and public API naming](agd-01ky0m0btmrp) — root `ag-grid-cljs`; fat `core` (setup + builders + runtime API) plus satellites `render`, `react`, opt-in `enterprise` (set-license-key!); internals under `ag-grid-cljs.impl.*` as the "private, may change" marker; `!` marks side-effecting fns (`create-grid!`/`register!`/`destroy!`/`set-rows!`/`transact!`/`set-license-key!`) while pure builders/accessors (`options`, `raw`, `with-*`) stay bang-free; builders are `with-<thing>`, opts-first, return opts, `->`-threadable. Implied skeleton drift for implementation: rename `create-grid` → `create-grid!`. Full resolution in the ticket's notes.
+- [Key registry: codegen pipeline and dev-warning design](agd-01ky0evm9nap) — codegen emits a `goog.DEBUG`-guarded CLJS literal at `ag-grid-cljs.impl.registry` (DCE'd whole from prod), NOT a runtime `.edn`; manual Node/ts-morph tool under `tools/`, generated CLJS committed, single AG-Grid-version pin stamped as `:ag-grid-version` (deps.cljs can't express the peer dep — README + package.json `peerDependencies` does); full rich per-key shape `{:camel :type :default :initial? :deprecated :doc}` (`:initial?` feeds the options-diffing ticket); position-aware dev validation (grid-options + known ColDef positions, opaque elsewhere), warn + kebab did-you-mean, never reject; MIDDLE division of labor vs AG Grid's `ValidationModule` — wrapper owns kebab unknown-key + did-you-mean + kebab deprecation warnings, delegates type/dependency/row-model to `ValidationModule` (off by default v36+), warnings deduped once per `[object-name key]`; same codegen pass emits committed `docs/reference/ag-grid-options.md`. Full resolution in the ticket's notes.
 
 ## Not yet specified
 
 - Spec assembly: format and home of the final design spec (docs/adr? single spec doc?) once decisions accumulate.
-- Docs/cljdoc strategy for builders and the reference table.
+- Docs/cljdoc strategy for the curated builders (the generated kebab↔camel reference table is resolved — committed `docs/reference/ag-grid-options.md`, see the key-registry ticket).
 - Testing story for the library (unit vs browser; what CI looks like) — data points so far: the skeleton's node-test contract suite plus per-ticket Playwright headless-Chromium checks (scripts kept out of the repo).
 - Theming/CSS story (AG Grid Theming API vs CSS files; how the wrapper exposes it).
 
