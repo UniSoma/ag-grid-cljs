@@ -1,17 +1,18 @@
 ---
 id: agd-01ky0ed8766f
 title: 'Walking skeleton: Fulcro integration with transactional data updates'
-status: open
+status: in_progress
 type: task
 priority: 1
 mode: hitl
 created: '2026-07-20T19:00:25.958172419Z'
-updated: '2026-07-21T01:38:51.912881747Z'
+updated: '2026-07-21T01:59:01.328252781Z'
 parent: agd-01ky0ebxg01e
 tags:
 - wayfinder:prototype
 deps:
 - agd-01ky0ed83xww
+assignee: jonas
 ---
 
 ## Description

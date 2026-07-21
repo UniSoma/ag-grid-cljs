@@ -43,3 +43,24 @@
   "Convert the EDN options map and mount AG Grid on el. Returns the GridApi."
   [el opts]
   (createGrid el (convert/->js opts)))
+
+(defn destroy!
+  "Tear down a grid instance (releases its DOM and listeners)."
+  [api]
+  (.destroy ^js api))
+
+;; --- explicit data channel (first cut, ticket agd-01ky0ed8766f) --------------
+
+(defn set-rows!
+  "Replace the full row set. Rows are JS by contract: a JS array of JS
+  objects. With :get-row-id set, AG Grid diffs by id and preserves grid
+  state across the swap."
+  [api rows]
+  (.setGridOption ^js api "rowData" rows))
+
+(defn transact!
+  "Apply a row transaction: {:add [...] :update [...] :remove [...]
+  :add-index n}. Rows are JS by contract; :update/:remove match rows via
+  :get-row-id. Returns AG Grid's RowNodeTransaction result untouched."
+  [api tx]
+  (.applyTransaction ^js api (convert/->js tx)))

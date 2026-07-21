@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dev/test harness for io.github.unisoma/ag-grid-cljs (the library itself ships no npm package; ag-grid-community is a peer dependency of consumers)",
   "scripts": {
-    "dev": "shadow-cljs watch dev-app",
+    "dev": "shadow-cljs watch dev-app fulcro-app",
     "test": "shadow-cljs compile test && node target/node-tests.js",
     "release": "shadow-cljs release dev-app"
   },

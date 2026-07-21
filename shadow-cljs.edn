@@ -8,5 +8,12 @@
             :asset-path "/js"
             :modules    {:main {:init-fn ag-grid-cljs.dev.app/init}}}
 
+  ;; WALKING SKELETON (ticket agd-01ky0ed8766f): Fulcro reference-consumer
+  ;; page at /fulcro.html — throwaway dev harness, not library code.
+  :fulcro-app {:target     :browser
+               :output-dir "src/dev/public/js-fulcro"
+               :asset-path "/js-fulcro"
+               :modules    {:main {:init-fn ag-grid-cljs.dev.fulcro-app/init}}}
+
   :test {:target    :node-test
          :output-to "target/node-tests.js"}}}
