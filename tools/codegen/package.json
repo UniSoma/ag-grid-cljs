@@ -1,0 +1,12 @@
+{
+  "name": "ag-grid-cljs-codegen",
+  "private": true,
+  "type": "module",
+  "description": "Manual key-registry codegen (ADR 0007). Run on AG Grid dependency bump; the emitted CLJS + Markdown are committed so the CLJS build stays pure-Clojure. Not part of CI.",
+  "scripts": {
+    "generate": "node extract.mjs"
+  },
+  "devDependencies": {
+    "ts-morph": "25.0.1"
+  }
+}
