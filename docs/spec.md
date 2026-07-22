@@ -2,7 +2,7 @@
 
 **io.github.unisoma/ag-grid-cljs** — an MIT-licensed, open-source, framework-agnostic ClojureScript wrapper for AG Grid (Community + Enterprise), released on Clojars. It wraps the vanilla `createGrid` core (never ag-grid-react); AG Grid npm packages are peer dependencies, never bundled; the library ships zero runtime dependencies (a cljs-bean slice is vendored). Toolchain floor: shadow-cljs ≥ 3.3.0 (ClojureScript 1.12.116+), AG Grid v34+.
 
-This spec is an index: every decision's full record — rationale, rejected alternatives, evidence — lives in its ADR under [docs/adr/](adr/). The glossary is [CONTEXT.md](../CONTEXT.md). This document plus the ADRs supersede the wayfinder map and its tickets, which are ephemeral.
+This spec is an index: every decision's full record — rationale, rejected alternatives, evidence — lives in its ADR under [docs/adr/](adr/). The glossary is [CONTEXT.md](../CONTEXT.md).
 
 ## Architecture overview
 
@@ -36,19 +36,7 @@ V1 ships no framework adapters ([ADR 0012](adr/0012-no-framework-adapters-v1.md)
 | [0014](adr/0014-docs-cljdoc-strategy.md) | cljdoc canonical; docstrings are the per-var contract; six topical articles + generated options reference; no separate site |
 | [0015](adr/0015-testing-and-ci.md) | Node suite for pure/fakeable, committed `:browser-test` + Playwright driver for runtime behavior; one CI workflow, unlicensed Enterprise smoke |
 
-## Walking skeleton: status and drift
-
-The skeleton is a **scaffold to keep** — implementation evolves it in place; it is not a reference to rewrite. It retired all five risk points: core mount, Fulcro integration (`src/dev/.../fulcro_app.cljs`), CLJS cell renderers, the cljs.proxy benchmark (rejected — branch `prototype/agd-01ky0ed8d7k2-cljs-proxy-bench`), and the Enterprise smoke (`src/dev/.../enterprise_app.cljs`, both license states). `npm test` runs 14 green node tests.
-
-Known drift between skeleton and locked spec — the implementation effort's first work items:
-
-- Rename `create-grid` → `create-grid!` (ADR 0006); return a `GridHandle` instead of the raw GridApi, add `grid-api`, and retarget `set-rows!`/`transact!`/`destroy!` accordingly (ADR 0008).
-- Implement `update-grid!`, the options differ (ADR 0008).
-- Builder catalog: remove `with-default-col-def` (dropped, ADR 0009); add `with-row-id`, `with-selection`, `with-pagination`, `with-infinite-datasource`.
-- Key registry: none of it exists — `tools/` codegen, `ag-grid-cljs.impl.registry`, dev validation warnings, generated `docs/reference/ag-grid-options.md` (ADR 0007).
-- Vendor the cljs-bean slice as `ag-grid-cljs.impl.bean` + `THIRD-PARTY.md`; drop the direct dep (ADR 0005; `deps.edn` carries the TODO).
-- Testing: add the shadow-cljs `:browser-test` build, the ~150-line Playwright driver, and the browser suite; add the GitHub Actions workflow — none exist yet (ADR 0015).
-- Docs: `doc/cljdoc.edn` tree, the six articles, docstring contracts, README pitch+quickstart (ADR 0014); theming and framework-composition recipes (ADRs 0013, 0012).
+**Status:** v1 implemented; the ADRs are the source of truth for each decision's contract.
 
 ## Scope boundary
 
@@ -60,12 +48,8 @@ Consciously out of this effort; a future redraw of the destination starts fresh:
 
 ## Research notes
 
-Sourced background under [docs/research/](research/) (version-pinned; re-check version-sensitive claims at implementation time):
+Sourced background under [docs/research/](research/) (version-pinned):
 
 - [ag-grid-module-registry-esm-enterprise.md](research/ag-grid-module-registry-esm-enterprise.md) — module system, ESM packaging, licensing surface (feeds ADR 0001).
 - [ag-grid-options-surface-extraction.md](research/ag-grid-options-surface-extraction.md) — options-surface extraction feasibility (feeds ADR 0007).
 - [ag-grid-react-wrapper.md](research/ag-grid-react-wrapper.md) — ag-grid-react vs vanilla core analysis (corroborates ADRs 0001, 0008, 0011).
-
-## Definition of done (met by this spec)
-
-Every decision from the design effort traces to an ADR or this document; the skeleton's drift is enumerated above; implementation can start as a fresh effort with no open questions.
