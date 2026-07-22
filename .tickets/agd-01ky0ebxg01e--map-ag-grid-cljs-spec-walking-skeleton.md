@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-07-20T18:59:42.208243308Z'
-updated: '2026-07-22T15:11:25.167263516Z'
+updated: '2026-07-22T15:37:21.897787116Z'
 tags:
 - wayfinder:map
 ---
@@ -56,10 +56,11 @@ Resolved tickets:
 - [Walking skeleton: Enterprise smoke test (modules, license, range selection)](agd-01ky0ed8fw7v) — Enterprise proven through the wrapper; **5th/final risk point retired, all skeleton risks now closed**. New opt-in `ag-grid-cljs.enterprise` ns with one fn `set-license-key!` (core never imports ag-grid-enterprise); consumer registers `AllEnterpriseModule` via `core/register!` (per the module-registry research); added `core/with-cell-selection` builder (catalog v1's `with-range-fill` case, v32.2+ object form, rides the conversion boundary unchanged). Headless-verified v36 in BOTH license states: cell range selection + fill handle work identically with and without a license — no-license (CI) path only logs AG Grid's "License Key Not Found" console error, nothing throws or degrades. License injected at COMPILE time via a dev-only macro reading `AG_GRID_LICENSE`; lands only in gitignored build output, never committed (git check-ignore + staged-tree grep verified). `npm test` green (14 tests). Full resolution in the ticket's notes.
 
 - [Theming/CSS story: Theming API vs CSS files, wrapper exposure](agd-01ky55n5xn5c) — no theming code in v1: `:theme` rides the conversion boundary as an opaque JS value (already true by contract, zero special-casing); builder/coercion sugar stays deferred per catalog v1. Deliverable is a docs recipe — default theme, `.withParams` customization (raw interop, camelCase params), dark mode (dark base or colorSchemeDark part), and the `theme: "legacy"` CSS-files escape hatch. Recipe home lands with the docs strategy ticket. Full resolution in the ticket's notes.
+- [Docs/cljdoc strategy: builder docs and the framework-composition recipe page](agd-01ky55neshd2) — cljdoc is canonical (articles under `docs/`, `doc/cljdoc.edn` tree, README = pitch + quickstart, no separate site); docstrings are the per-var contract for the 8 builders + runtime fns (coerce/bundle statement, EDN shape, threaded example, written keys, Enterprise/version constraints) with no builders-catalog article; six topical articles — getting-started (+Enterprise setup), options-and-conversion, updating-data (set-rows!-from-db, pending-rows, range-fill flush), cell-rendering (built-ins, data-type-definitions), framework-composition, theming; generated `docs/reference/ag-grid-options.md` joins the cljdoc tree as a machine-generated article. Spec completeness on the docs axis = architecture + inventory-with-outlines + docstring convention + generated reference locked; prose written at implementation. Full resolution in the ticket's notes.
 
 ## Not yet specified
 
-(empty — all remaining fog has graduated into tickets: testing story, docs/cljdoc strategy, and spec assembly, which is blocked by the open decisions.)
+(empty — all remaining fog has graduated into tickets: testing story and spec assembly, which is blocked by the open decisions.)
 
 ## Out of scope
 
