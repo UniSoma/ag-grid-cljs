@@ -29,15 +29,118 @@
 (defn with-columns [opts col-defs]
   (assoc opts :column-defs (vec col-defs)))
 
-(defn with-default-col-def [opts col-def]
-  (assoc opts :default-col-def col-def))
-
 (defn with-row-data
   "Rows are JS by contract: pass a JS array of JS objects.
   (A JS array passes the converter untouched; CLJS rows trigger the
   dev-mode JS-by-contract warning.)"
   [opts rows]
   (assoc opts :row-data rows))
+
+(defn with-row-id
+  "Coercion: assoc `:get-row-id`, the row-identity callback AG Grid uses to
+  diff row data. Give it a keyword naming an id field, or a function computing
+  an id from the row; either way the result is string-coerced, since AG Grid
+  requires `getRowId` to return a string.
+
+  Load-bearing: with a stable row id, `set-rows!` and `transact!` diff by id
+  and preserve grid state (scroll/selection/focus) across updates (ADR 0008).
+
+  EDN shape:
+
+  - a keyword — `(with-row-id opts :id)` reads that field from each JS row
+    (`:first-name` reads `firstName`, kebab->camel like every other key) and
+    calls `str` on it. Compiles to a `raw` callback over the JS row, so the
+    per-row hot path allocates no bean.
+  - a function — `(with-row-id opts (fn [p] (:id (:data p))))` receives the
+    kebab-bean params (ADR 0010; `(:data p)` is the row) and its return is
+    string-coerced. Wrap your own fn with `raw` to receive raw JS params.
+
+  Writes AG Grid's `getRowId` grid option (initial-only). Community; all
+  supported versions.
+
+  Example:
+
+      (-> (options)
+          (with-columns [{:field :id} {:field :name}])
+          (with-row-id :id))"
+  [opts id]
+  (assoc opts :get-row-id
+         (if (keyword? id)
+           (let [prop (convert/kebab->camel (name id))]
+             (raw (fn [^js params] (str (unchecked-get (.-data params) prop)))))
+           (fn [params] (str (id params))))))
+
+(defn- ->row-selection-mode
+  "Coerce a friendly selection mode to the v32.2 rowSelection.mode string:
+  :single/:multiple -> \"singleRow\"/\"multiRow\". The deprecated pre-v32.2
+  strings \"single\"/\"multiple\" are upgraded the same way (churn-shielding);
+  the v32.2 strings \"singleRow\"/\"multiRow\" and anything else pass through."
+  [mode]
+  (case mode
+    (:single "single" "singleRow")    "singleRow"
+    (:multiple "multiple" "multiRow") "multiRow"
+    mode))
+
+(defn with-selection
+  "Option-bundle: assoc `:row-selection` as the v32.2+ `rowSelection` OBJECT,
+  shielding callers from the pre-v32.2 string form (`\"single\"`/`\"multiple\"`)
+  and its scattered deprecated flags (`suppressRowClickSelection`, etc.).
+
+  Coerces the friendly `:mode` value — `:single`/`:multiple` (or the raw
+  `\"singleRow\"`/`\"multiRow\"`) — and passes the remaining friendly keys
+  through the conversion boundary unchanged (`:header-checkbox` ->
+  `headerCheckbox`, etc.).
+
+  EDN shape (all keys optional; `:mode` defaults to `:multiple`):
+
+      {:mode                   :single | :multiple
+       :checkboxes             true | false
+       :header-checkbox        true | false     ; multiRow only
+       :enable-click-selection true | false}
+
+  Writes AG Grid's `rowSelection` grid option (an object). Community; requires
+  AG Grid v32.2+ (the object form of `rowSelection`).
+
+  Example:
+
+      (-> (options)
+          (with-columns [{:field :name}])
+          (with-selection {:mode :multiple :header-checkbox true}))"
+  [opts selection]
+  (assoc opts :row-selection
+         (assoc selection :mode (->row-selection-mode (:mode selection :multiple)))))
+
+(defn with-pagination
+  "Option-bundle: turn on pagination and configure page sizing, encoding the
+  `paginationAutoPageSize` x `paginationPageSize` mutual exclusion (AG Grid
+  ignores a fixed page size when auto-sizing is on).
+
+  EDN shape (config optional; `(with-pagination opts)` just enables it):
+
+      {:page-size          25            ; rows per page (ignored if :auto-page-size)
+       :page-size-selector [25 50 100]   ; or true/false to show/hide the selector
+       :auto-page-size     true}         ; size each page to fill the viewport
+
+  When `:auto-page-size` is true, `:page-size` is dropped (dev-warns if both
+  were given). Writes `pagination`, plus `paginationPageSize`,
+  `paginationPageSizeSelector`, `paginationAutoPageSize` as supplied. Community;
+  all supported versions.
+
+  Example:
+
+      (-> (options)
+          (with-columns [{:field :name}])
+          (with-pagination {:page-size 25 :page-size-selector [25 50 100]}))"
+  ([opts] (with-pagination opts {}))
+  ([opts {:keys [page-size page-size-selector auto-page-size]}]
+   (when (and ^boolean goog.DEBUG auto-page-size (some? page-size))
+     (js/console.warn
+      (str "[ag-grid-cljs] with-pagination: :auto-page-size and :page-size are "
+           "mutually exclusive; :page-size dropped (AG Grid auto-sizes each page).")))
+   (cond-> (assoc opts :pagination true)
+     auto-page-size                       (assoc :pagination-auto-page-size true)
+     (and page-size (not auto-page-size)) (assoc :pagination-page-size page-size)
+     (some? page-size-selector)           (assoc :pagination-page-size-selector page-size-selector))))
 
 (defn with-cell-selection
   "Enable cell (range) selection — Enterprise. Pass true for defaults, or the
@@ -46,6 +149,39 @@
   module bundle registered (CellSelectionModule) and a license."
   [opts cell-selection]
   (assoc opts :cell-selection cell-selection))
+
+(defn with-infinite-datasource
+  "Behavioral bundle (Community, Infinite Row Model): assoc
+  `:row-model-type \"infinite\"` plus a `:datasource` wrapping `get-rows`, and
+  optional cache sizing. Bundles the row-model wiring — it does NOT marshal the
+  callbacks (ADR 0010 §5).
+
+  `get-rows` is your fetch function. It receives one argument, the kebab-bean
+  request params: `:start-row`, `:end-row`, `:sort-model`, `:filter-model`, and
+  the raw AG Grid callbacks `:success`/`:fail`. Rows are JS by contract, so
+  reply with a JS object:
+
+      (fn [params]
+        (let [page (fetch (:start-row params) (:end-row params))]
+          ((:success params) #js {:rowData (into-array page) :rowCount total})))
+
+  Second arg (optional) is cache sizing: `{:cache-block-size 100
+  :max-blocks-in-cache 10}`. Writes `rowModelType`, `datasource`, and any of
+  `cacheBlockSize`/`maxBlocksInCache` supplied. Community; requires the
+  InfiniteRowModelModule registered (`register!`).
+
+  Example:
+
+      (-> (options)
+          (with-columns [{:field :name}])
+          (with-infinite-datasource get-rows {:cache-block-size 50}))"
+  ([opts get-rows] (with-infinite-datasource opts get-rows {}))
+  ([opts get-rows {:keys [cache-block-size max-blocks-in-cache]}]
+   (cond-> (assoc opts
+                  :row-model-type "infinite"
+                  :datasource {:get-rows get-rows})
+     cache-block-size    (assoc :cache-block-size cache-block-size)
+     max-blocks-in-cache (assoc :max-blocks-in-cache max-blocks-in-cache))))
 
 ;; --- mount ------------------------------------------------------------------
 

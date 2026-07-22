@@ -4,6 +4,7 @@
   element, so these tests construct a handle over a fake GridApi and verify the
   accessor and channels dispatch onto it."
   (:require [ag-grid-cljs.core :as grid]
+            [ag-grid-cljs.impl.convert :as convert]
             [cljs.test :refer [deftest is testing]]))
 
 (defn- fake-api
@@ -113,6 +114,77 @@
       (is (array? val))
       (is (= 2 (.-length val)) "the whole new column-defs value is forward-converted and shipped")
       (is (= "b" (unchecked-get (aget val 1) "field"))))))
+
+;; --- builder catalog v1 (ADR 0009) ------------------------------------------
+
+(defn- get-row-id-fn
+  "Convert opts through the boundary and pull out the resulting getRowId JS fn."
+  [opts]
+  (unchecked-get (convert/->js opts) "getRowId"))
+
+(deftest with-row-id-keyword-reads-field-and-string-coerces
+  (testing "a keyword reads that field off the raw JS row and str-coerces"
+    (let [f (get-row-id-fn (grid/with-row-id {} :id))]
+      (is (= "7" (f #js {:data #js {:id 7}})) "numeric id coerced to string")))
+  (testing "the field name is kebab->camel'd like every other key"
+    (let [f (get-row-id-fn (grid/with-row-id {} :first-name))]
+      (is (= "Ada" (f #js {:data #js {:firstName "Ada"}}))))))
+
+(deftest with-row-id-fn-receives-bean-and-string-coerces
+  (testing "a fn receives the kebab-bean params and its return is str-coerced"
+    (let [f (get-row-id-fn (grid/with-row-id {} (fn [p] (:id (:data p)))))]
+      (is (= "7" (f #js {:data #js {:id 7}}))))))
+
+(deftest with-selection-bundles-rowselection-object-and-coerces-mode
+  (testing ":mode is coerced to the v32.2 string; friendly keys pass through"
+    (is (= {:row-selection {:mode "multiRow" :header-checkbox true}}
+           (grid/with-selection {} {:mode :multiple :header-checkbox true}))))
+  (testing ":single -> singleRow"
+    (is (= "singleRow" (get-in (grid/with-selection {} {:mode :single}) [:row-selection :mode]))))
+  (testing ":mode defaults to :multiple when omitted"
+    (is (= "multiRow" (get-in (grid/with-selection {} {}) [:row-selection :mode]))))
+  (testing "an explicit AG Grid mode string passes through untouched"
+    (is (= "singleRow" (get-in (grid/with-selection {} {:mode "singleRow"}) [:row-selection :mode])))))
+
+(deftest with-pagination-enables-and-bundles-page-sizing
+  (testing "no config just enables pagination"
+    (is (= {:pagination true} (grid/with-pagination {}))))
+  (testing "page-size and selector are written"
+    (is (= {:pagination true :pagination-page-size 25 :pagination-page-size-selector [25 50 100]}
+           (grid/with-pagination {} {:page-size 25 :page-size-selector [25 50 100]}))))
+  (testing "auto-page-size wins over page-size (mutual exclusion) and warns"
+    (let [out (atom nil)
+          w   (capture #(reset! out (grid/with-pagination {} {:auto-page-size true :page-size 25})))]
+      (is (= {:pagination true :pagination-auto-page-size true} @out)
+          ":page-size is dropped when :auto-page-size is on")
+      (is (= 1 (count w)))
+      (is (re-find #"mutually exclusive" (first w)))))
+  (testing "auto-page-size alone does not warn"
+    (is (= [] (capture #(grid/with-pagination {} {:auto-page-size true}))))))
+
+(deftest with-infinite-datasource-bundles-row-model-and-datasource
+  (testing "row-model-type + datasource are set; cache sizing is optional"
+    (let [gr   (fn [_])
+          opts (grid/with-infinite-datasource {} gr)]
+      (is (= "infinite" (:row-model-type opts)))
+      (is (= gr (get-in opts [:datasource :get-rows])))
+      (is (not (contains? opts :cache-block-size)))))
+  (testing "cache sizing is written when supplied"
+    (let [opts (grid/with-infinite-datasource {} (fn [_]) {:cache-block-size 50 :max-blocks-in-cache 4})]
+      (is (= 50 (:cache-block-size opts)))
+      (is (= 4 (:max-blocks-in-cache opts))))))
+
+(deftest with-infinite-datasource-getrows-follows-callback-contract
+  (testing "getRows sees kebab-bean params and calls the raw :success callback"
+    (let [captured (atom nil)
+          gr       (fn [params]
+                     (is (= 0 (:start-row params)) "params arrive as a kebab-bean")
+                     ((:success params) #js {:rowData (into-array [#js {:id 1}]) :rowCount 1}))
+          js-opts  (convert/->js (grid/with-infinite-datasource {} gr))
+          get-rows (unchecked-get (unchecked-get js-opts "datasource") "getRows")]
+      (get-rows #js {:startRow 0 :endRow 100 :success (fn [r] (reset! captured r))})
+      (is (= 1 (unchecked-get @captured "rowCount")))
+      (is (array? (unchecked-get @captured "rowData"))))))
 
 (deftest update-grid!-stash-reflects-applied-state
   (testing "the returned handle's stash merges present new keys so later diffs stay minimal"

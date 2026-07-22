@@ -72,7 +72,7 @@
 
 (defn grid-opts [rows]
   (-> (grid/options)
-      (grid/with-default-col-def {:sortable true :flex 1})
+      (assoc :default-col-def {:sortable true :flex 1})
       (grid/with-columns
         [{:field :name}
          {:field :salary}

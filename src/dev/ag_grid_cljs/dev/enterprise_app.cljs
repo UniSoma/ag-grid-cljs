@@ -32,7 +32,7 @@
 
 (def opts
   (-> (grid/options)
-      (grid/with-default-col-def {:sortable true :flex 1})
+      (assoc :default-col-def {:sortable true :flex 1})
       (grid/with-columns
         [{:field :first-name}
          {:field :last-name}
