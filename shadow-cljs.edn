@@ -15,5 +15,13 @@
                :asset-path "/js-fulcro"
                :modules    {:main {:init-fn ag-grid-cljs.dev.fulcro-app/init}}}
 
+  ;; WALKING SKELETON (ticket agd-01ky0ed8fw7v): Enterprise smoke-test page at
+  ;; /enterprise.html — throwaway dev harness, not library code. The license key
+  ;; is inlined at compile time from AG_GRID_LICENSE (dev-only license macro).
+  :enterprise-app {:target     :browser
+                   :output-dir "src/dev/public/js-enterprise"
+                   :asset-path "/js-enterprise"
+                   :modules    {:main {:init-fn ag-grid-cljs.dev.enterprise-app/init}}}
+
   :test {:target    :node-test
          :output-to "target/node-tests.js"}}}

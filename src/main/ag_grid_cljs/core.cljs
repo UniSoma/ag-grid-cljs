@@ -37,6 +37,14 @@
   [opts rows]
   (assoc opts :row-data rows))
 
+(defn with-cell-selection
+  "Enable cell (range) selection — Enterprise. Pass true for defaults, or the
+  v32.2+ cellSelection object form for finer control, e.g.
+  {:handle {:mode \"fill\"}} to turn on the fill handle. Requires an Enterprise
+  module bundle registered (CellSelectionModule) and a license."
+  [opts cell-selection]
+  (assoc opts :cell-selection cell-selection))
+
 ;; --- mount ------------------------------------------------------------------
 
 (defn create-grid

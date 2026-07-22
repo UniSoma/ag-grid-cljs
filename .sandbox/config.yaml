@@ -5,6 +5,6 @@ mounts:
   - $HOME/.config/polylith/config.edn
 
 env:
-  NREPL_PORT: 7888
+  - AG_GRID_LICENSE
 
 # pre_start: "clojure -M:nrepl:dev:test &"

@@ -6,3 +6,4 @@ src/dev/public/js/
 .clj-kondo/.cache/
 .lsp/.cache/
 src/dev/public/js-fulcro/
+src/dev/public/js-enterprise/
