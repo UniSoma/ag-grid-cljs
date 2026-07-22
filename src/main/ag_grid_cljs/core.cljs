@@ -2,6 +2,7 @@
   "Public API — walking-skeleton first cut. Namespace layout and naming
   are provisional until the namespace-layout decision lands."
   (:require [ag-grid-cljs.impl.convert :as convert]
+            [ag-grid-cljs.impl.validate :as validate]
             ["ag-grid-community" :refer [createGrid ModuleRegistry]]))
 
 (def raw
@@ -66,7 +67,28 @@
                            (with-columns [{:field :name}])
                            (with-row-data rows)))"
   [el opts]
+  ;; goog.DEBUG guard here (not only inside validate-options!) is load-bearing:
+  ;; it keeps validate the sole caller goog.DEBUG-gated so :advanced DCEs the
+  ;; whole namespace + registry in production (ADR 0007 §1). Don't "simplify".
+  (when ^boolean goog.DEBUG (validate/validate-options! opts))
   (->GridHandle (createGrid el (convert/->js opts)) opts))
+
+(defn enable-dev-validations!
+  "Turn on the wrapper's dev-mode option validation: unknown top-level and
+  ColDef keys warn once with a kebab did-you-mean, and deprecated keys warn with
+  their replacement (ADR 0007 §4-5). Warn-only — validation never rejects or
+  alters what AG Grid receives. No-op in production builds (goog.DEBUG false),
+  where both the validation code and the key registry are dead-code-eliminated.
+
+  Call once at app startup in dev. This covers only the kebab-native layer; for
+  type, option-dependency, and row-model checks register AG Grid's own
+  ValidationModule (dev bundle) alongside it:
+
+      (:require [\"ag-grid-community\" :refer [ValidationModule]])
+      (ag/register! ValidationModule)
+      (ag/enable-dev-validations!)"
+  []
+  (when ^boolean goog.DEBUG (validate/enable!)))
 
 (defn grid-api
   "Return the raw AG Grid GridApi held by `handle` — the escape hatch
