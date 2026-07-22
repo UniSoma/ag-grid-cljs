@@ -1,0 +1,11 @@
+;; cljdoc article tree (ADR 0014). cljdoc is the canonical documentation site:
+;; these Markdown articles plus the docstrings rendered as API reference. The
+;; last entry is machine-generated (ADR 0007) — regenerate it, never hand-edit.
+{:cljdoc.doc/tree
+ [["Getting started"          {:file "docs/getting-started.md"}]
+  ["Options and conversion"   {:file "docs/options-and-conversion.md"}]
+  ["Updating data"            {:file "docs/updating-data.md"}]
+  ["Cell rendering"           {:file "docs/cell-rendering.md"}]
+  ["Framework composition"    {:file "docs/framework-composition.md"}]
+  ["Theming"                  {:file "docs/theming.md"}]
+  ["AG Grid options reference" {:file "docs/reference/ag-grid-options.md"}]]}
