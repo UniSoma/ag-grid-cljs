@@ -47,28 +47,62 @@
 
 ;; --- mount ------------------------------------------------------------------
 
-(defn create-grid
-  "Convert the EDN options map and mount AG Grid on el. Returns the GridApi."
+(defrecord GridHandle [api opts])
+
+(defn create-grid!
+  "Convert the EDN options map and mount AG Grid on `el`, returning a GridHandle
+  — `{:api <GridApi> :opts <last-applied-EDN>}` — that every runtime channel
+  takes (ADR 0008). `el` is a DOM element; `opts` is the EDN options map (build
+  it with the `with-*` builders or plain `assoc`). The map crosses the
+  conversion boundary (kebab->camel, ADR 0005) before it reaches AG Grid.
+
+  The stashed `:opts` is the unconverted EDN, so later `update-grid!` diffs
+  compare EDN to EDN; reach the raw GridApi with `grid-api` for anything the
+  wrapper does not cover.
+
+  Example:
+
+      (create-grid! el (-> (options)
+                           (with-columns [{:field :name}])
+                           (with-row-data rows)))"
   [el opts]
-  (createGrid el (convert/->js opts)))
+  (->GridHandle (createGrid el (convert/->js opts)) opts))
+
+(defn grid-api
+  "Return the raw AG Grid GridApi held by `handle` — the escape hatch
+  (ADR 0004) for any imperative capability the wrapper does not wrap.
+
+  Example: `(.getDisplayedRowCount (grid-api handle))`."
+  [handle]
+  (:api handle))
 
 (defn destroy!
-  "Tear down a grid instance (releases its DOM and listeners)."
-  [api]
-  (.destroy ^js api))
+  "Tear down the grid behind `handle` (releases its DOM and listeners).
+  Takes a GridHandle from `create-grid!`.
+
+  Example: `(destroy! handle)`."
+  [handle]
+  (.destroy ^js (:api handle)))
 
 ;; --- explicit data channel (first cut, ticket agd-01ky0ed8766f) --------------
 
 (defn set-rows!
-  "Replace the full row set. Rows are JS by contract: a JS array of JS
-  objects. With :get-row-id set, AG Grid diffs by id and preserves grid
-  state across the swap."
-  [api rows]
-  (.setGridOption ^js api "rowData" rows))
+  "Replace the full row set on the grid behind `handle`. Rows are JS by
+  contract: a JS array of JS objects (ADR 0003). With `:get-row-id` set, AG Grid
+  diffs by id and preserves grid state (scroll/selection/focus) across the swap.
+  Writes AG Grid's `rowData` grid option.
+
+  Example: `(set-rows! handle (into-array (map person->row people)))`."
+  [handle rows]
+  (.setGridOption ^js (:api handle) "rowData" rows))
 
 (defn transact!
-  "Apply a row transaction: {:add [...] :update [...] :remove [...]
-  :add-index n}. Rows are JS by contract; :update/:remove match rows via
-  :get-row-id. Returns AG Grid's RowNodeTransaction result untouched."
-  [api tx]
-  (.applyTransaction ^js api (convert/->js tx)))
+  "Apply a fine-grained row transaction to the grid behind `handle`:
+  `{:add [...] :update [...] :remove [...] :add-index n}`. Rows are JS by
+  contract (ADR 0003); `:update`/`:remove` match existing rows via
+  `:get-row-id`. The tx map is forward-converted (ADR 0005) and handed to AG
+  Grid's `applyTransaction`; its RowNodeTransaction result is returned untouched.
+
+  Example: `(transact! handle {:update [(person->row p)]})`."
+  [handle tx]
+  (.applyTransaction ^js (:api handle) (convert/->js tx)))

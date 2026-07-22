@@ -44,13 +44,14 @@
       (grid/with-cell-selection {:handle {:mode "fill"}})
       (assoc :dom-layout :auto-height)))
 
-(defonce api* (atom nil))
+(defonce handle* (atom nil))
 
 (defn ^:export init []
   (let [el      (js/document.getElementById "app")
-        api     (grid/create-grid el opts)
+        handle  (grid/create-grid! el opts)
+        api     (grid/grid-api handle)
         details (.getLicenseDetails LicenseManager (or license ""))]
-    (reset! api* api)
+    (reset! handle* handle)
     ;; Expose facts for the headless probe / manual inspection.
     (set! (.-__agEnterprise js/window)
           #js {:rows          (.getDisplayedRowCount ^js api)

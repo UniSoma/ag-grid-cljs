@@ -78,10 +78,10 @@
       (grid/with-row-data row-data)
       (assoc :dom-layout :auto-height)))
 
-(defonce api* (atom nil))
+(defonce handle* (atom nil))
 
 (defn ^:export init []
   (let [el (js/document.getElementById "app")]
-    (reset! api* (grid/create-grid el opts))
+    (reset! handle* (grid/create-grid! el opts))
     (js/console.log "[skeleton] grid mounted, displayed rows:"
-                    (.getDisplayedRowCount ^js @api*))))
+                    (.getDisplayedRowCount (grid/grid-api @handle*)))))

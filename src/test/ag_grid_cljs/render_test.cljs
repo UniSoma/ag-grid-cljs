@@ -8,7 +8,7 @@
 
 (defn- converted-class
   "Run a helper-produced renderer through the options converter and pull the
-  cellRenderer back out, exactly as create-grid would hand it to AG Grid."
+  cellRenderer back out, exactly as create-grid! would hand it to AG Grid."
   [r]
   (unchecked-get (convert/->js {:cell-renderer r}) "cellRenderer"))
 

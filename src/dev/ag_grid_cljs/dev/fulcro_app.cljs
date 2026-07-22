@@ -27,7 +27,7 @@
 (defonce _modules (grid/register! AllCommunityModule))
 
 (defonce APP (app/fulcro-app))
-(defonce grid-api* (atom nil))
+(defonce handle* (atom nil))
 
 ;; --- Fulcro db is the source of truth; rows derive from entities -------------
 
@@ -47,8 +47,8 @@
   (action [{:keys [state]}]
           (let [person (-> (swap! state update-in [:person/id id :person/salary] + 1000)
                            (get-in [:person/id id]))]
-            (when-let [api @grid-api*]
-              (grid/transact! api {:update [(person->row person)]})))))
+            (when-let [handle @handle*]
+              (grid/transact! handle {:update [(person->row person)]})))))
 
 (defmutation add-person [_params]
   (action [{:keys [state]}]
@@ -57,8 +57,8 @@
             (swap! state #(-> %
                               (assoc-in [:person/id id] person)
                               (update :root/people (fnil conj []) [:person/id id])))
-            (when-let [api @grid-api*]
-              (grid/transact! api {:add [(person->row person)] :add-index 0})))))
+            (when-let [handle @handle*]
+              (grid/transact! handle {:add [(person->row person)] :add-index 0})))))
 
 ;; --- transact! from a cell: detached local root, explicit app reference ------
 
@@ -94,15 +94,15 @@
   {:shouldComponentUpdate (fn [_ _ _] false)
    :componentDidMount
    (fn [this]
-     (let [el  (gobj/get this "grid-el")
-           api (grid/create-grid el (grid-opts (:rows (comp/props this))))]
-       (reset! grid-api* api)
-       (set! (.-agApi js/window) api)))   ; hook for the headless check
+     (let [el     (gobj/get this "grid-el")
+           handle (grid/create-grid! el (grid-opts (:rows (comp/props this))))]
+       (reset! handle* handle)
+       (set! (.-agApi js/window) (grid/grid-api handle))))   ; hook for the headless check
    :componentWillUnmount
    (fn [_this]
-     (when-let [api @grid-api*]
-       (grid/destroy! api)
-       (reset! grid-api* nil)))}
+     (when-let [handle @handle*]
+       (grid/destroy! handle)
+       (reset! handle* nil)))}
   (dom/div {:style {:height "320px"}
             :ref   (fn [r] (when r (gobj/set this "grid-el" r)))}))
 
@@ -131,7 +131,7 @@
    ;; full-swap path of the data channel: with :get-row-id set, AG Grid
    ;; diffs the new array by id — grid state survives the swap too
    (dom/button {:id      "sync-rows"
-                :onClick #(grid/set-rows! @grid-api*
+                :onClick #(grid/set-rows! @handle*
                                           (into-array (map person->row people)))}
                "Set rows from db")
    (ui-grid-host {:rows (into-array (map person->row people))})))
