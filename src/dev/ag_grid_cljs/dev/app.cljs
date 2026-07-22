@@ -80,8 +80,22 @@
 
 (defonce handle* (atom nil))
 
+;; Demo the declarative update channel (ADR 0008): a quick-filter box PATCHes a
+;; single updatable grid option via update-grid!, threading the returned handle
+;; back into the atom so successive diffs stay minimal.
+(defn- quick-filter-box []
+  (let [input (js/document.createElement "input")]
+    (set! (.-placeholder input) "quick filter…")
+    (set! (.-cssText (.-style input)) "margin-bottom:8px;padding:4px 8px")
+    (.addEventListener input "input"
+                       (fn [e]
+                         (swap! handle* grid/update-grid!
+                                {:quick-filter-text (.. e -target -value)})))
+    input))
+
 (defn ^:export init []
   (let [el (js/document.getElementById "app")]
+    (.before el (quick-filter-box))
     (reset! handle* (grid/create-grid! el opts))
     (js/console.log "[skeleton] grid mounted, displayed rows:"
                     (.getDisplayedRowCount (grid/grid-api @handle*)))))
