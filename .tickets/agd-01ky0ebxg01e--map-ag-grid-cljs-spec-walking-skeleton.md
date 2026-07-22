@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-07-20T18:59:42.208243308Z'
-updated: '2026-07-22T15:37:21.897787116Z'
+updated: '2026-07-22T17:37:33.559230899Z'
 tags:
 - wayfinder:map
 ---
@@ -57,10 +57,11 @@ Resolved tickets:
 
 - [Theming/CSS story: Theming API vs CSS files, wrapper exposure](agd-01ky55n5xn5c) — no theming code in v1: `:theme` rides the conversion boundary as an opaque JS value (already true by contract, zero special-casing); builder/coercion sugar stays deferred per catalog v1. Deliverable is a docs recipe — default theme, `.withParams` customization (raw interop, camelCase params), dark mode (dark base or colorSchemeDark part), and the `theme: "legacy"` CSS-files escape hatch. Recipe home lands with the docs strategy ticket. Full resolution in the ticket's notes.
 - [Docs/cljdoc strategy: builder docs and the framework-composition recipe page](agd-01ky55neshd2) — cljdoc is canonical (articles under `docs/`, `doc/cljdoc.edn` tree, README = pitch + quickstart, no separate site); docstrings are the per-var contract for the 8 builders + runtime fns (coerce/bundle statement, EDN shape, threaded example, written keys, Enterprise/version constraints) with no builders-catalog article; six topical articles — getting-started (+Enterprise setup), options-and-conversion, updating-data (set-rows!-from-db, pending-rows, range-fill flush), cell-rendering (built-ins, data-type-definitions), framework-composition, theming; generated `docs/reference/ag-grid-options.md` joins the cljdoc tree as a machine-generated article. Spec completeness on the docs axis = architecture + inventory-with-outlines + docstring convention + generated reference locked; prose written at implementation. Full resolution in the ticket's notes.
+- [Testing story: unit vs browser split and CI shape](agd-01ky55n9xka3) — split rule: the node suite owns everything pure or fakeable (conversion contract, builders, registry/validation, `update-grid!` differ vs a stubbed GridApi); the browser owns only what depends on real AG Grid runtime behavior (mount, scroll/selection preservation, React renderers, Enterprise, one update-applies smoke). Browser suite IS committed: shadow-cljs `:browser-test` (assertions in cljs.test, in-runtime API access) + a ~150-line Playwright driver (re-frame's 2025 runner pattern; real mouse drag for fill handle; AG Grid `data-testid` hooks); karma/etaoin/jsdom rejected. CI = one GitHub Actions workflow, every push/PR: node tests then Playwright-managed headless Chromium; no matrix (single OS/Node/AG-Grid pin), codegen stays out of CI. Enterprise smoke runs unlicensed in CI (known license console errors allowlisted, unexpected console errors fail); no licensed CI leg — licensed path is a documented local `AG_GRID_LICENSE` run. Full resolution + prior-art research in the ticket's notes.
 
 ## Not yet specified
 
-(empty — all remaining fog has graduated into tickets: testing story and spec assembly, which is blocked by the open decisions.)
+(empty — all remaining fog has graduated into tickets; only spec assembly remains open, now unblocked.)
 
 ## Out of scope
 
