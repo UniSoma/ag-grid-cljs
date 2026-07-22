@@ -1,10 +1,8 @@
 {:paths ["src/main"]
 
- ;; TODO(spec): cljs-bean is a direct dep only in the walking skeleton.
- ;; Per the conversion-boundary decision (agd-01ky0eck96vn) the shipped library
- ;; vendors a slice of cljs-bean under ag-grid-cljs.impl.bean (EPL headers
- ;; retained, THIRD-PARTY.md) so the runtime dependency set is empty.
- :deps {cljs-bean/cljs-bean {:mvn/version "1.9.0"}}
+ ;; Zero runtime dependencies beyond the AG Grid peer packages (ADR 0005 §8):
+ ;; the cljs-bean slice is vendored under ag-grid-cljs.impl.bean.
+ :deps {}
 
  :aliases
  {:dev {:extra-paths ["src/dev" "src/test"]

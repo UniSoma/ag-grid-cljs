@@ -3,7 +3,7 @@
   (ticket agd-01ky0eck96vn). Walking-skeleton cut: namespace layout and
   naming are provisional until the namespace-layout decision lands."
   (:require [clojure.string :as str]
-            [cljs-bean.core :as bean]))
+            [ag-grid-cljs.impl.bean :as bean]))
 
 ;; --- key transforms ---------------------------------------------------------
 
@@ -53,7 +53,7 @@
 (defn params-bean
   "Lazy kebab-keyed view over a JS callback-params object. A view, not a
   copy: only accessed keys pay conversion; the underlying JS object is
-  reachable via cljs-bean.core/object."
+  reachable via ag-grid-cljs.impl.bean/object."
   [o]
   (bean/bean o
              :prop->key (comp keyword camel->kebab)
