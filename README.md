@@ -59,8 +59,20 @@ Requires Node and Clojure CLI; shadow-cljs ≥ 3.3.0.
 
 ```sh
 npm install
-npm run dev   # dev app at http://localhost:8080
-npm test      # node contract tests
+npm run dev           # dev app at http://localhost:8080
+npm test              # node contract suite
+npm run test:browser  # committed browser suite (Playwright-driven headless Chromium)
+```
+
+The browser suite (ADR 0015) runs cljs.test assertions inside the real AG Grid
+runtime; a Playwright driver serves the compiled build, drives headless
+Chromium, and fails on any unexpected console error. It needs a browser once:
+`npx playwright install --with-deps chromium`. The Enterprise smoke runs
+unlicensed by default (its license console errors are allowlisted). To run it
+licensed locally, inline your key at compile time:
+
+```sh
+AG_GRID_LICENSE="<your-key>" npm run test:browser
 ```
 
 Design decisions and open questions are tracked with [knot](.tickets/); the

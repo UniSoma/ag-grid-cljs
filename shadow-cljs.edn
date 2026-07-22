@@ -23,5 +23,18 @@
                    :asset-path "/js-enterprise"
                    :modules    {:main {:init-fn ag-grid-cljs.dev.enterprise-app/init}}}
 
-  :test {:target    :node-test
-         :output-to "target/node-tests.js"}}}
+  :test {:target     :node-test
+         :output-to  "target/node-tests.js"
+         ;; scope discovery to the node suite so the committed browser suite
+         ;; (src/browser-test, also *-test) never runs headless in node (ADR 0015)
+         :test-paths ["src/test"]}
+
+  ;; Committed browser suite (ADR 0015): assertions stay in cljs.test inside the
+  ;; real AG Grid runtime; the Playwright driver (test/browser/run.mjs) serves
+  ;; target/browser-test, drives headless Chromium, and reads the summary the
+  ;; runner-ns stashes on window. :test-paths keeps this disjoint from :test.
+  :browser-test {:target     :browser-test
+                 :test-dir   "target/browser-test"
+                 :test-paths ["src/browser-test"]
+                 :runner-ns  ag-grid-cljs.browser.runner
+                 :devtools   {:http-port 8291}}}}

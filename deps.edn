@@ -5,7 +5,7 @@
  :deps {}
 
  :aliases
- {:dev {:extra-paths ["src/dev" "src/test"]
+ {:dev {:extra-paths ["src/dev" "src/test" "src/browser-test"]
         :extra-deps  {thheller/shadow-cljs {:mvn/version "3.4.11"}
                       ;; dev harness only: Fulcro is the reference-consumer
                       ;; bar (ticket agd-01ky0ed8766f), never a library dep
