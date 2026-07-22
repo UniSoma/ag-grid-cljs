@@ -90,7 +90,7 @@
   "Stable div the grid mounts into. shouldComponentUpdate false pins it:
   Fulcro refreshes never re-render below this point; all post-mount data
   flows through the explicit channel."
-  [this {:keys [rows]}]
+  [this _props]
   {:shouldComponentUpdate (fn [_ _ _] false)
    :componentDidMount
    (fn [this]

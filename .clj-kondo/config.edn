@@ -1,0 +1,13 @@
+{;; The bean namespaces are vendored byte-for-byte from cljs-bean 1.9.0
+ ;; (see src/main/ag_grid_cljs/impl/bean.cljs header). Upstream reaches into
+ ;; cljs.core internals (pr-writer, protocol methods) and keeps unused
+ ;; protocol-arg names; we suppress those lints here rather than diverge from
+ ;; upstream source.
+ :config-in-ns
+ {ag-grid-cljs.impl.bean
+  {:linters {:private-call {:level :off}
+             :unresolved-protocol-method {:level :off}
+             :unused-binding {:level :off}
+             :unused-private-var {:level :off}}}
+  ag-grid-cljs.impl.bean.from-core
+  {:linters {:unused-binding {:level :off}}}}}
