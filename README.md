@@ -1,5 +1,9 @@
 # ag-grid-cljs
 
+[![Clojars Project](https://img.shields.io/clojars/v/io.github.unisoma/ag-grid-cljs.svg)](https://clojars.org/io.github.unisoma/ag-grid-cljs)
+[![cljdoc badge](https://cljdoc.org/badge/io.github.unisoma/ag-grid-cljs)](https://cljdoc.org/d/io.github.unisoma/ag-grid-cljs)
+[![CI](https://github.com/UniSoma/ag-grid-cljs/actions/workflows/ci.yml/badge.svg)](https://github.com/UniSoma/ag-grid-cljs/actions/workflows/ci.yml)
+
 ClojureScript wrapper for [AG Grid](https://www.ag-grid.com/): a plain EDN
 options map over the **vanilla** AG Grid core (`createGrid`, not
 `ag-grid-react`), transactional updates that map onto AG Grid's own diffing,
@@ -19,6 +23,16 @@ dependencies you install and register yourself.
 ```sh
 npm install ag-grid-community
 ```
+
+Add the wrapper to your `deps.edn`:
+
+```clojure
+;; deps.edn
+io.github.unisoma/ag-grid-cljs {:mvn/version "0.1.0-SNAPSHOT"}
+```
+
+`0.1.0-SNAPSHOT` is a mutable, pre-stable artifact — it can change under you, so
+don't pin it in production.
 
 ```clojure
 (ns my.app

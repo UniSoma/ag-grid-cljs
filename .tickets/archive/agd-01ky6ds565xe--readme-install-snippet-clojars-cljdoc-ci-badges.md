@@ -1,12 +1,13 @@
 ---
 id: agd-01ky6ds565xe
 title: README install snippet + Clojars/cljdoc/CI badges
-status: open
+status: closed
 type: task
 priority: 2
 mode: afk
 created: '2026-07-23T02:44:54.085882858Z'
-updated: '2026-07-23T02:44:54.085882858Z'
+updated: '2026-07-23T02:56:59.385258764Z'
+closed: '2026-07-23T02:56:59.385258764Z'
 tags:
 - release
 - v0.1
@@ -25,3 +26,9 @@ Implementation of ADR 0016. Advertise the published coordinate.
 Scope: README gains a deps.edn install snippet — io.github.unisoma/ag-grid-cljs {:mvn/version "0.1.0-SNAPSHOT"} — with a note that SNAPSHOT is mutable/pre-stable. Add three badges: Clojars version, cljdoc, and the CI workflow status.
 
 Out of scope (ADR 0016): NO AG-Grid-version badge (would re-imply the version coupling the ADR rejects).
+
+## Notes
+
+**2026-07-23T02:56:59.385258764Z**
+
+README: added {:mvn/version "0.1.0-SNAPSHOT"} deps.edn install snippet flagged mutable/pre-stable, plus Clojars + cljdoc + CI badges; no AG-Grid-version badge (ADR 0016 decision 7). Commit b9a38a4.
