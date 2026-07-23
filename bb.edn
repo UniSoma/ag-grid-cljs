@@ -1,0 +1,29 @@
+{:tasks
+ {jar
+  {:doc "Build the source-only jar (target/*.jar + pom)."
+   :task (clojure "-T:build jar")}
+
+  install
+  {:doc "Build and install the jar into the local ~/.m2 with its pom."
+   :task (clojure "-T:build install")}
+
+  deploy
+  {:doc "Build and deploy the jar to Clojars (needs CLOJARS_USERNAME/CLOJARS_PASSWORD; git push first — see docs/release.md)."
+   :task (clojure "-T:build deploy")}
+
+  cljdoc
+  {:doc "Force-trigger a cljdoc rebuild for the coordinate+version in build.clj."
+   :requires ([babashka.http-client :as http])
+   :task
+   (let [build   (slurp "build.clj")
+         project (second (re-find (re-pattern "\\(def lib '([^\\s)]+)\\)") build))
+         version (second (re-find (re-pattern "\\(def version \"([^\"]+)\"\\)") build))]
+     (when-not (and project version)
+       (throw (ex-info "Could not scrape lib/version from build.clj" {})))
+     (println "Requesting cljdoc build for" project version)
+     (let [resp (http/post "https://cljdoc.org/api/request-build2"
+                           {:form-params {"project" project "version" version}
+                            :throw false})]
+       (println "HTTP" (:status resp))
+       (when-let [body (not-empty (:body resp))]
+         (println body))))}}}
