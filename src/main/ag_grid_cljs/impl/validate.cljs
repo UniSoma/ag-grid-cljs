@@ -1,21 +1,30 @@
 (ns ag-grid-cljs.impl.validate
-  "Dev-only, position-aware validation of the EDN options map, run at the
+  "Two dev-only diagnostics with opposite defaults (ADR 0017). Both are
+  warn-only: neither ever rejects or alters what AG Grid receives (ADR 0002).
+
+  DEV VALIDATIONS — position-aware validation of the EDN options map, run at the
   conversion boundary (ADR 0007 §4-5). It does the strictly-kebab-native layer
   AG Grid's own ValidationModule cannot: unknown-key warnings with a kebab
   did-you-mean, plus kebab-native deprecation warnings carrying the replacement.
   It NEVER reimplements type/dependency/row-model checks (delegated to
-  ValidationModule) and it NEVER rejects or alters conversion output — warn-only
-  (ADR 0002).
+  ValidationModule). Position-aware: top-level keys validate against
+  :grid-options (+ event handlers); the known ColDef-bearing positions
+  (:column-defs items, :default-col-def, :auto-group-column-def, and group
+  :children) validate against :col-def / :col-group-def; everything else is
+  opaque and never touched. OFF by default — ag-grid-cljs.core/
+  enable-dev-validations! flips it on, because these checks test consumer keys
+  against a registry pinned to one AG Grid version and so drift.
 
-  Position-aware: top-level keys validate against :grid-options (+ event
-  handlers); the known ColDef-bearing positions (:column-defs items,
-  :default-col-def, :auto-group-column-def, and group :children) validate against
-  :col-def / :col-group-def; everything else is opaque and never touched.
+  FIELD CHECK — install-field-check!, which compares each column's emitted field
+  string against the keys of one sampled row and warns once per field with a
+  did-you-mean. ALWAYS ON: it is registry-free (it compares two consumer-supplied
+  things to each other), so the drift argument behind the gate does not apply and
+  enable-dev-validations! does not cover it.
 
-  Off by default; ag-grid-cljs.core/enable-dev-validations! flips it on. Every
-  registry reference here sits inside ^boolean goog.DEBUG guards and the whole
-  namespace is reached only from goog.DEBUG-guarded call sites, so :advanced
-  compilation with {goog.DEBUG false} dead-code-eliminates it (ADR 0007 §1)."
+  Every registry reference here sits inside ^boolean goog.DEBUG guards and the
+  whole namespace is reached only from goog.DEBUG-guarded call sites, so
+  :advanced compilation with {goog.DEBUG false} dead-code-eliminates it
+  (ADR 0007 §1)."
   (:require [ag-grid-cljs.impl.convert :as convert]
             [ag-grid-cljs.impl.registry :as reg]))
 
@@ -62,16 +71,22 @@
                    (range 1 (inc n)))]
           (recur (inc i) cur (next sc)))))))
 
+(defn- closest
+  "Closest of `candidates` (strings) to `input` within a length-scaled edit
+  distance, or nil."
+  [input candidates]
+  (let [thresh (max 2 (quot (count input) 3))]
+    (->> candidates
+         (map (fn [c] [c (levenshtein input c)]))
+         (filter (fn [[_ d]] (<= d thresh)))
+         (sort-by second)
+         ffirst)))
+
 (defn- suggest
   "Closest kebab key to `input` (a string) within a length-scaled edit distance,
   or nil. `kebabs` is a seq of candidate keywords."
   [input kebabs]
-  (let [thresh (max 2 (quot (count input) 3))]
-    (->> kebabs
-         (map (fn [kw] [kw (levenshtein input (name kw))]))
-         (filter (fn [[_ d]] (<= d thresh)))
-         (sort-by second)
-         ffirst)))
+  (some-> (closest input (map name kebabs)) keyword))
 
 ;; --- per-position known-key indexes (dev-only literals; DCE in prod) ---------
 ;; Each position is a spec {:camels <set> :deprs <camel->note> :kebabs <keys>}:
@@ -156,3 +171,120 @@
     (validate-col-defs (:column-defs opts))
     (validate-col-def (:default-col-def opts))
     (validate-col-def (:auto-group-column-def opts))))
+
+;; --- field check (always-on, ADR 0017) --------------------------------------
+;; Reads the emitted JS off the live grid rather than the EDN options map: rows
+;; leave the options map at creation (ADR 0004), so warnings name camel strings —
+;; which is what AG Grid is looking up and failing to find.
+
+(defn- js-object?
+  "True when `x` is safe on the right of the `in` operator — a plain object, a
+  class instance or a null-prototype object, but not a primitive (`in` throws on
+  those, and a diagnostic must never crash the grid)."
+  [x]
+  (identical? "object" (goog/typeOf x)))
+
+(defn- lookup-key
+  "The key AG Grid actually reads out of the row for `field`. Only the first dot
+  segment: nested objects are legitimately sparse, so walking deeper would trade
+  a rare catch for a common false positive."
+  [field dots?]
+  (if dots? (first (.split field ".")) field))
+
+(defn field-targets
+  "The checkable targets of one AG Grid `Column` — a vector of
+  `{:kind :field|:tooltip-field :field <emitted string> :row-key <key read>}`
+  (public for the node suite).
+
+  Skipping is per field, not per ColDef: a `valueGetter` supersedes `field` and
+  drops it, but nothing drops `tooltipField` — v36's cell tooltip resolver reads
+  `data[tooltipField]` before consulting `tooltipValueGetter`. Dot notation is
+  whatever the Column already resolved, so `:suppress-field-dot-notation` is
+  honoured for free."
+  [^js col]
+  (let [d (.getColDef col)
+        f (.-field d)
+        t (.-tooltipField d)]
+    (cond-> []
+      (and (string? f) (seq f) (nil? (.-valueGetter d)))
+      (conj {:kind    :field
+             :field   f
+             :row-key (lookup-key f (.isFieldContainsDots col))})
+
+      (and (string? t) (seq t))
+      (conj {:kind    :tooltip-field
+             :field   t
+             :row-key (lookup-key t (.isTooltipFieldContainsDots col))}))))
+
+(defn- unresolved?
+  "Has no verdict yet been reached for this target's field string?"
+  [state {:keys [field]}]
+  (not (contains? @state field)))
+
+(defn first-row
+  "The first loaded leaf data row, or nil (public for the node suite). Group rows
+  are skipped: a CSRM group node carries no data at all, and an SSRM group row
+  carries only its grouping field — sampling one would read as every other field
+  being absent."
+  [^js api]
+  (let [v (volatile! nil)]
+    (.forEachNode api (fn [^js node]
+                        (when (and (nil? @v)
+                                   (not (.-group node))
+                                   (some? (.-data node)))
+                          (vreset! v (.-data node)))))
+    @v))
+
+(defn check-fields!
+  "Warn once for each of `targets` whose `:row-key` is absent from `row` (public
+  for the node suite). `state` is an atom holding the set of resolved field
+  strings, where resolved means a verdict was reached — warned or found present;
+  the warning fires on the transition into the set. A non-object `row` (including
+  nil: no rows loaded yet) resolves nothing and warns nothing.
+
+  Presence is deliberately asymmetric with the suggestion pool: `in` walks the
+  prototype chain, so class instances with prototype getters stay quiet, while
+  `js-keys` does not, so \"toString\" is never suggested."
+  [state targets row]
+  (when (js-object? row)
+    (doseq [{:keys [kind field row-key] :as target} targets
+            :when (unresolved? state target)]
+      (swap! state conj field)
+      (when-not (js-in row-key row)
+        (js/console.warn
+         (str "[ag-grid-cljs] column "
+              (if (= :tooltip-field kind) "tooltip field" "field") " "
+              (pr-str field) " is not a key in the row data"
+              (when-let [sug (closest row-key (js-keys row))]
+                (str " — did you mean " (pr-str sug) "?"))))))))
+
+(defn- run-field-check!
+  "One pass over the live grid. `getColumns` returns null until colModel.ready;
+  the short-circuit on already-resolved fields keeps the steady state a
+  set-membership test rather than a full forEachNode traversal, which matters
+  because newColumnsLoaded also fires on sort and resize."
+  [^js api state]
+  (when-let [cols (.getColumns api)]
+    (let [targets (into [] (mapcat field-targets) cols)]
+      (when (some #(unresolved? state %) targets)
+        (check-fields! state targets (first-row api))))))
+
+(defn install-field-check!
+  "Install the field check on a live grid: register `modelUpdated` (data arriving
+  by any route) and `newColumnsLoaded` (columnDefs replaced), then run the check
+  once. The immediate run is load-bearing, not belt-and-braces — addEventListener
+  is only reachable after createGrid returns, by which point both events have
+  already fired for the initial columns and rows, so a grid that is never
+  subsequently modified would otherwise never be checked.
+
+  State is per-grid, held in the listener closure: the \"present in this grid's
+  rows\" half is inherently per-grid, and the module-global dedup set would both
+  silence a real bug on a second grid with differently-shaped rows and survive
+  hot reload. Not gated by enable-dev-validations! (ADR 0017)."
+  [^js api]
+  (when ^boolean goog.DEBUG
+    (let [state  (atom #{})
+          check! (fn [_] (run-field-check! api state))]
+      (.addEventListener api "modelUpdated" check!)
+      (.addEventListener api "newColumnsLoaded" check!)
+      (check! nil))))

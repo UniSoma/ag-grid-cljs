@@ -209,7 +209,12 @@
   ;; it keeps validate the sole caller goog.DEBUG-gated so :advanced DCEs the
   ;; whole namespace + registry in production (ADR 0007 §1). Don't "simplify".
   (when ^boolean goog.DEBUG (validate/validate-options! opts))
-  (->GridHandle (createGrid el (convert/->js opts)) opts (atom #{})))
+  (let [api (createGrid el (convert/->js opts))]
+    ;; The field check is always on in dev — no enable-dev-validations! (ADR
+    ;; 0017). It can only be installed here: addEventListener is unreachable
+    ;; until createGrid returns, so install-field-check! also runs once itself.
+    (when ^boolean goog.DEBUG (validate/install-field-check! api))
+    (->GridHandle api opts (atom #{}))))
 
 (defn enable-dev-validations!
   "Turn on the wrapper's dev-mode option validation: unknown top-level and
@@ -218,7 +223,9 @@
   alters what AG Grid receives. No-op in production builds (goog.DEBUG false),
   where both the validation code and the key registry are dead-code-eliminated.
 
-  Call once at app startup in dev. This covers only the kebab-native layer; for
+  Call once at app startup in dev. This gate covers only these registry-backed
+  option warnings — the field check (a column `:field` naming a key the row data
+  does not have) is always on in dev builds and needs no call (ADR 0017). For
   type, option-dependency, and row-model checks register AG Grid's own
   ValidationModule (dev bundle) alongside it:
 

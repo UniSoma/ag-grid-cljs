@@ -1,37 +1,37 @@
 ---
 id: agd-01kyd3sefe7e
 title: Dev warning when a column field is absent from the row data
-status: open
+status: in_progress
 type: feature
 priority: 1
 mode: afk
 created: '2026-07-25T17:04:58.862565757Z'
-updated: '2026-07-26T21:39:57.431768429Z'
+updated: '2026-07-26T21:59:34.392242453Z'
 acceptance:
 - title: :tooltip-field is checked the same way
-  done: false
+  done: true
 - title: A field that is present is silent; a key whose value is nil counts as present
-  done: false
+  done: true
 - title: Columns nested in column-group :children are checked
-  done: false
+  done: true
 - title: Warns once per field, not per row and not per update
-  done: false
+  done: true
 - title: Fires without calling enable-dev-validations!
-  done: false
+  done: true
 - title: Runs at grid creation and when columns or rows change
-  done: false
+  done: true
 - title: Nothing survives a goog.DEBUG false build
-  done: false
+  done: true
 - title: 'Silent while no leaf data row has loaded: no rows, empty rows, or a datasource that has not delivered yet'
-  done: false
+  done: true
 - title: A ColDef carrying :value-getter has its :field skipped; its :tooltip-field is still checked
-  done: false
+  done: true
 - title: A dot-notation field checks only its first segment; with :suppress-field-dot-notation on, the whole field is checked as a literal key
-  done: false
+  done: true
 - title: The dev apps and the browser suite produce no new warnings, since both are correct under today's rule
-  done: false
+  done: true
 - title: A :field absent from the sampled row warns once, naming the emitted field string and suggesting the closest key the row actually has
-  done: false
+  done: true
 ---
 
 ## Description
@@ -131,3 +131,11 @@ AC 12 is manual: grep the `:advanced` build for `is not a key in the row data`.
 - `newColumnsLoaded` fires on sort and resize too; absorbed by the short-circuit.
 - Synthesized columns are checked when they carry a field.
 - The browser tripwire only fails on `console.error`/`pageerror`, so it does not police these warnings. Widening it is a separate ticket.
+
+## Notes
+
+**2026-07-26T21:59:34.392242453Z**
+
+Manual verification for AC 'Nothing survives a goog.DEBUG false build': `npm run release` (:advanced, goog.DEBUG false) then grepped src/dev/public/js/main.js — 0 hits for "[ag-grid-cljs]", "is not a key in the row data", "column tooltip field". The only "did you mean" / isTooltipFieldContainsDots hits in that bundle are AG Grid's own ValidationModule and Column method.
+
+Manual verification for AC 'The dev apps and the browser suite produce no new warnings': all three dev pages (index/fulcro/enterprise) loaded in headless Chromium — 0 wrapper warnings, 0 console errors each. Browser suite: 8 tests, 28 assertions, 0 failures.
