@@ -32,6 +32,14 @@ _Avoid_: schema, spec layer
 A grid option AG Grid accepts only at creation; the differ warns once and ignores changes to it.
 _Avoid_: immutable option
 
+**Dev validations**:
+The opt-in, registry-backed warnings over the EDN options map — unknown keys with a kebab did-you-mean, deprecations carrying their replacement. Heuristic against a registry pinned to one AG Grid version, so `enable-dev-validations!` gates them.
+_Avoid_: linting, schema check
+
+**Field check**:
+The always-on dev diagnostic comparing each column's emitted field string against the keys of a sampled row, warning once per field with a did-you-mean. Registry-free — it compares two consumer-supplied things — so it needs no opt-in.
+_Avoid_: field validation, column validation
+
 **GridHandle**:
 The value returned by `create-grid!` — `{:api :opts}` — carrying the raw GridApi (via `grid-api`) and the last-applied options for diffing.
 _Avoid_: grid instance, grid ref
