@@ -129,11 +129,11 @@ keyword** converts by its name only, warning that the namespace was dropped.
 
 ## Dev-mode warnings
 
-All of the above nudges — plus unknown-key typo detection and deprecation
-notices — are **dev-only** and compiled out of production builds entirely
-(`goog.DEBUG` false dead-code-eliminates the validation code and the key
-registry). They never reject or alter what AG Grid receives; the open-surface
-guarantee holds. You get:
+All of the above nudges — plus unknown-key typo detection, deprecation notices,
+and the field check — are **dev-only** and compiled out of production builds
+entirely (`goog.DEBUG` false dead-code-eliminates the validation code and the
+key registry). They never reject or alter what AG Grid receives; the
+open-surface guarantee holds. You get:
 
 - **JS-by-contract nudge** — a data-carrying key received a CLJS collection.
 - **XSS nudge** — a renderer function returned an HTML-looking string (AG Grid
@@ -142,6 +142,26 @@ guarantee holds. You get:
 - **Typo and deprecation warnings** — opt in with
   [[ag-grid-cljs.core/enable-dev-validations!]]; unknown keys get a kebab
   did-you-mean, deprecated keys point at their replacement.
+- **Field check** — a column's `:field` (or `:tooltip-field`) names a key your
+  row data does not have, so the column renders blank. Warns once per field
+  with a did-you-mean, at creation and whenever columns or rows change.
+
+The field check needs no opt-in — it is on in every dev build. The gate exists
+because typo detection tests your keys against a registry pinned to one AG Grid
+version, and a consumer on a newer AG Grid would get false "unknown option"
+warnings from that drift; the field check compares your columns against your own
+rows, so it has nothing to drift against.
+
+It reports the **camel string AG Grid is looking up**, not your kebab source:
+
+```
+[ag-grid-cljs] column field "fristName" is not a key in the row data — did you mean "firstName"?
+```
+
+A `:value-getter` on the ColDef suppresses the `:field` half (the getter
+supersedes the field) but never the `:tooltip-field` half, which AG Grid reads
+straight off the row regardless. A dotted field is checked one segment deep, so
+legitimately sparse nested data stays quiet.
 
 For type, option-dependency, and row-model checks beyond the kebab layer,
 register AG Grid's own `ValidationModule` in your dev bundle alongside

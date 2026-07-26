@@ -96,13 +96,19 @@ is exactly as valid — the builders are documented sugar, not a gate. Anything
 they do not cover, you `assoc`; anything the conversion boundary should not
 touch, you wrap with [[ag-grid-cljs.core/raw]] (see the next article).
 
-## Dev-mode validation
+## Dev-mode warnings
 
 In development, opt into the wrapper's typo and deprecation warnings with
 [[ag-grid-cljs.core/enable-dev-validations!]] (call once at startup). Unknown
 keys get a kebab did-you-mean; it is warn-only and compiled out of production
 builds entirely. For type and option-dependency checks, register AG Grid's own
 `ValidationModule` alongside it.
+
+The **field check** needs no such call — it is on in every dev build. When a
+column's `:field` or `:tooltip-field` names a key your row data does not have
+(the blank-column bug, which AG Grid itself reports nowhere), it warns once with
+a did-you-mean. See
+[Options and conversion](options-and-conversion.md#dev-mode-warnings).
 
 ## Enterprise setup
 

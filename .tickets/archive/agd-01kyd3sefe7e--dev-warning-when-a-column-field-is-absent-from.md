@@ -1,12 +1,13 @@
 ---
 id: agd-01kyd3sefe7e
 title: Dev warning when a column field is absent from the row data
-status: in_progress
+status: closed
 type: feature
 priority: 1
 mode: afk
 created: '2026-07-25T17:04:58.862565757Z'
-updated: '2026-07-26T21:59:34.392242453Z'
+updated: '2026-07-26T22:12:17.931572501Z'
+closed: '2026-07-26T22:12:17.931572501Z'
 acceptance:
 - title: :tooltip-field is checked the same way
   done: true
@@ -139,3 +140,7 @@ AC 12 is manual: grep the `:advanced` build for `is not a key in the row data`.
 Manual verification for AC 'Nothing survives a goog.DEBUG false build': `npm run release` (:advanced, goog.DEBUG false) then grepped src/dev/public/js/main.js — 0 hits for "[ag-grid-cljs]", "is not a key in the row data", "column tooltip field". The only "did you mean" / isTooltipFieldContainsDots hits in that bundle are AG Grid's own ValidationModule and Column method.
 
 Manual verification for AC 'The dev apps and the browser suite produce no new warnings': all three dev pages (index/fulcro/enterprise) loaded in headless Chromium — 0 wrapper warnings, 0 console errors each. Browser suite: 8 tests, 28 assertions, 0 failures.
+
+**2026-07-26T22:12:17.931572501Z**
+
+Always-on dev field check in impl.validate (ADR 0017): install-field-check! is called from create-grid! behind a goog.DEBUG guard right after createGrid returns, registers modelUpdated + newColumnsLoaded, and runs once immediately (load-bearing — addEventListener is unreachable until createGrid returns, by which point both events have fired). Columns come from the flat getColumns() list so group :children need no recursion and a defaultColDef :value-getter suppresses correctly; the row sample is the first forEachNode leaf node carrying data, so every row model is covered and group rows never masquerade as the shape. Presence is js-in (prototype chain), suggestions are js-keys (own enumerable) — both halves biased toward silence. Per-grid resolved-field state lives in the listener closure and short-circuits before the row model. Not gated by enable-dev-validations!; the ns docstring now scopes that gate to the registry-backed checks. Tests per ADR 0015: 15 node tests over fakes (pure core, ColDef->target mapping, row sampling, listener registration) + 3 browser tests for the two AG-Grid claims (getColumns() flattens group children; events fire at creation, on :column-defs replacement, and on a transaction into an empty grid). Node 60/171 green, browser 8/28 green, clj-kondo clean. Manual ACs verified: the :advanced build has 0 hits for the wrapper's dev strings, and all three dev apps load headless with 0 wrapper warnings. Commits 3669386 (feature) and ae8811e (docs: field check documented in getting-started.md + options-and-conversion.md).
