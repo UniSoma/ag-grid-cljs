@@ -18,6 +18,8 @@ V1 ships no framework adapters ([ADR 0012](adr/0012-no-framework-adapters-v1.md)
 
 ## Decision records
 
+This table indexes the v1 design effort — ADRs 0001–0015. Decisions taken afterwards (release engineering, and amendments made during implementation) are numbered 0016 and up and live beside them in [docs/adr/](adr/); the table does not grow with them.
+
 | ADR | Decision |
 |---|---|
 | [0001](adr/0001-wrap-vanilla-core.md) | Wrap vanilla ag-grid-community core, not ag-grid-react; Fulcro is the reference-consumer bar; consumer owns module registration; opt-in `enterprise` ns |
