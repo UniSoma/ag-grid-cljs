@@ -51,9 +51,27 @@
   (when ^boolean goog.DEBUG
     (js/console.warn (apply str "[ag-grid-cljs] " msg))))
 
-(def ^:private data-carrying-props
+(def ^:private row-props
   ;; JS-by-contract nudge (contract rule 5)
-  #{"rowData" "pinnedTopRowData" "pinnedBottomRowData" "context"})
+  #{"rowData" "pinnedTopRowData" "pinnedBottomRowData"})
+
+(def ^:private data-carrying-props
+  (conj row-props "context"))
+
+(defn- warn-cljs-collection
+  "Nudge for a data-carrying prop handed a CLJS collection. Rows and context
+  get different messages because they have different answers: rows are JS by
+  contract (agd-01kygjg6avt2 — the code lives in the article, since a recipe
+  is a row-shape/field pairing that does not compress into one line), while
+  context does convert, just lossily."
+  [prop]
+  (if (contains? row-props prop)
+    (warn prop " received a CLJS collection; row data is JS by contract — "
+          "pass a JS array of JS objects. See \"Options and conversion\" for "
+          "the two CLJS→JS row recipes.")
+    (warn prop " received a CLJS collection; it converts through the boundary "
+          "(keys camelize, keyword values become strings). Wrap with raw to "
+          "get the CLJS value back unchanged in callbacks.")))
 
 ;; --- raw escape hatch -------------------------------------------------------
 
@@ -222,8 +240,7 @@
                                    (str k)))]
        (when (and (contains? data-carrying-props prop)
                   (coll? v) (not (raw? v)))
-         (warn prop " received a CLJS collection; row data is JS by contract — "
-               "pass a JS array (or wrap with raw / clj->js if intentional)"))
+         (warn-cljs-collection prop))
        (unchecked-set o prop (if (and (renderer-prop? prop) (fn? v) (not (raw? v)))
                                (wrap-renderer-fn v)
                                (->js v)))

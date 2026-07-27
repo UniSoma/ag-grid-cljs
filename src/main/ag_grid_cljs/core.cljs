@@ -21,6 +21,31 @@
 ;; Builders are plain-map sugar: the bottom layer is always an EDN options
 ;; map, fully reachable via ordinary assoc.
 
+(defn kebab->camel
+  "The boundary's key transform, exposed for building JS row data:
+  `:first-name` (or `\"first-name\"`) -> `\"firstName\"`. Already-camel input
+  passes through unchanged.
+
+  Its use is the camel-keyed row recipe — shaped to drop straight into
+  `clj->js`, so a CLJS row set converts to the spelling keyword `:field`s
+  emit:
+
+  ```clojure
+  (clj->js [{:first-name \"Ada\"}] :keyword-fn kebab->camel)
+  ;; => #js [#js {\"firstName\" \"Ada\"}], pairs with {:field :first-name}
+  ```
+
+  It is the same function the converter applies to option keys, exposed so
+  consumer code spells rows the one way the wrapper spells everything —
+  a private copy is free to drift from the law the grid actually follows.
+
+  Note `clj->js` applies `:keyword-fn` to keyword *values* too, not just
+  keys: `{:status :in-progress}` converts to `{\"status\" \"inProgress\"}`
+  and renders as `inProgress`. Keep row values as strings when the literal
+  spelling matters. See \"Options and conversion\" for both row recipes."
+  [k]
+  (convert/kebab->camel (name k)))
+
 (defn options
   "Start an options map, optionally from an existing EDN map."
   ([] {})
@@ -32,7 +57,11 @@
 (defn with-row-data
   "Rows are JS by contract: pass a JS array of JS objects.
   (A JS array passes the converter untouched; CLJS rows trigger the
-  dev-mode JS-by-contract warning.)"
+  dev-mode JS-by-contract warning.)
+
+  Holding CLJS rows? Convert them at the edge with one of the two recipes in
+  \"Options and conversion\" — each pairs a row spelling with the matching
+  column `:field` spelling, and half a pairing renders blank cells."
   [opts rows]
   (assoc opts :row-data rows))
 

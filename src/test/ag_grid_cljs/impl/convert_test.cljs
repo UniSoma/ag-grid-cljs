@@ -113,6 +113,32 @@
         wrapped (unchecked-get (c/->js {:f f}) "f")]
     (is (= 7 (wrapped 7)) "non-object args pass to the fn as-is")))
 
+(deftest cljs-collection-warnings-split-rows-from-context
+  ;; agd-01kygjg6avt2: the row nudge must not name a bare conversion call as a
+  ;; recipe (a recipe is a row/field pairing, so the code lives in the article);
+  ;; :context is not row data and keeps raw as its answer.
+  (let [warnings  (atom [])
+        orig-warn js/console.warn
+        matching  #(first (filter (fn [w] (re-find % w)) @warnings))]
+    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
+    (try
+      (c/->js {:row-data [{:first-name "Ada"}]
+               :context  {:tenant-id 42}})
+      (let [row-warning (matching #"rowData received")
+            ctx-warning (matching #"context received")]
+        (is (some? row-warning) "a CLJS row collection warns")
+        (is (not (re-find #"clj->js" row-warning))
+            "the row nudge points at the recipes instead of naming a call")
+        (is (re-find #"Options and conversion" row-warning)
+            "the row nudge names where the recipes live")
+        (is (some? ctx-warning) "a CLJS context warns separately")
+        (is (re-find #"raw" ctx-warning)
+            "the context nudge points at raw, its actual answer")
+        (is (not (re-find #"JS by contract" ctx-warning))
+            "context is not row data"))
+      (finally
+        (set! js/console.warn orig-warn)))))
+
 (deftest renderer-fn-html-string-warning
   ;; decision on agd-01ky0ed8adbf: the bare fn in a *CellRenderer position is
   ;; the vanilla escape hatch (innerHTML semantics) — dev-warn when its string

@@ -1,28 +1,29 @@
 ---
 id: agd-01kygjg6avt2
 title: JS-by-contract warning gives an incomplete clj->js recipe
-status: open
+status: closed
 type: bug
 priority: 2
 mode: afk
 created: '2026-07-27T01:19:47.544644867Z'
-updated: '2026-07-27T01:59:37.752320929Z'
+updated: '2026-07-27T20:12:13.225910088Z'
+closed: '2026-07-27T20:12:13.225910088Z'
 tags:
 - docs
 - conversion
 acceptance:
 - title: The warning no longer presents bare clj->js as a complete row-data recipe
-  done: false
+  done: true
 - title: The docs show camel-keyed rows with keyword fields and literal kebab rows with string fields
-  done: false
+  done: true
 - title: The docs state that callback literal-key fallback does not change AG Grid field resolution
-  done: false
+  done: true
 - title: Both documented row/field pairings render correctly in browser tests
-  done: false
+  done: true
 - title: The literal kebab recipe returns the same value through a wrapped callback
-  done: false
+  done: true
 - title: docs/options-and-conversion.md and the warning use consistent guidance
-  done: false
+  done: true
 links:
 - agd-01kygja77mxj
 deps:
@@ -51,3 +52,9 @@ Document two supported recipes:
 Keep the console warning short and point to the conversion documentation for code. The article should include copyable examples for both recipes and state explicitly that callback fallback does not rewrite column fields or row objects. `raw` remains valid when the consumer intentionally wants the original CLJS collection passed through, but it is not a row conversion recipe.
 
 Verify both documented row/field pairings in the browser. The literal recipe should also prove that the rendered value and callback value agree.
+
+## Notes
+
+**2026-07-27T20:12:13.225910088Z**
+
+Split the data-carrying nudge (rows point at the Options and conversion article; :context gets its own raw-pointing message), exposed ag/kebab->camel as the camelizing :keyword-fn, and documented both row recipes as row-shape/field pairings with a pairing table, the keyword-values caveat, ADR 0003's conversion cost, and the statement that ADR 0018's fallback cannot rescue a mismatched field. New row-recipes browser suite runs both documented calls verbatim (render + callback read); node test pins both warning texts. Commit 1aea82e. node 75 tests/235 assertions green; browser 11 tests/37 assertions green.

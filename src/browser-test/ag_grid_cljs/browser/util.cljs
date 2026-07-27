@@ -33,6 +33,21 @@
   [el]
   (when (.-parentNode el) (.removeChild js/document.body el)))
 
+(defn poll-testid
+  "Promise of the element carrying data-testid `id` under `root`. AG Grid's
+  TestIdService stamps test ids on a debounce after gridReady, so a single
+  animation frame can win the race; poll briefly instead."
+  [root id]
+  (js/Promise.
+   (fn [resolve _]
+     (let [deadline (+ (js/Date.now) 3000)]
+       ((fn tick []
+          (if-some [n (by-testid root id)]
+            (resolve n)
+            (if (< (js/Date.now) deadline)
+              (js/setTimeout tick 25)
+              (resolve nil)))))))))
+
 (defn next-frame
   "Promise resolved on the next animation frame — lets AG Grid flush a
   virtualization/scroll update before an assertion reads back the DOM."

@@ -92,6 +92,54 @@ untouched. In dev, passing a CLJS collection to a data-carrying option
 (`:row-data`, `:pinned-top-row-data`, `:context`, …) warns you — see below.
 This applies equally to [`set-rows!` and `transact!`](updating-data.md).
 
+### If your rows are CLJS data
+
+Convert them yourself, at the edge. What matters is that **a row spelling and a
+column `:field` spelling are a pair**: `{:field :first-name}` emits
+`"firstName"`, so a row carrying `"first-name"` renders a blank cell under it.
+Two pairings are supported:
+
+| Row shape | Column field | Callback read |
+| --- | --- | --- |
+| `{"firstName": "Ada"}` — camel-keyed | `{:field :first-name}` (keyword) | `(:first-name (:data p))` |
+| `{"first-name": "Ada"}` — literal kebab | `{:field "first-name"}` (string) | `(:first-name (:data p))` |
+
+**Camel-keyed rows** — convert with [[ag-grid-cljs.core/kebab->camel]] as the
+`:keyword-fn`, and your columns stay in ordinary keyword form:
+
+```clojure
+(-> (ag/options)
+    (ag/with-columns [{:field :first-name} {:field :price}])
+    (ag/with-row-data
+      (clj->js [{:first-name "Ada" :price 42}] :keyword-fn ag/kebab->camel)))
+```
+
+`clj->js` applies `:keyword-fn` to keyword *values* too, so `{:status
+:in-progress}` becomes `{"status": "inProgress"}` and renders that way. Keep
+values as strings where the literal spelling matters.
+
+**Literal kebab-keyed rows** — bare `clj->js` keys objects with `(name k)`, so
+rows keep their kebab spelling and the columns must name them as strings:
+
+```clojure
+(-> (ag/options)
+    (ag/with-columns [{:field "first-name"} {:field "price"}])
+    (ag/with-row-data (clj->js [{:first-name "Ada" :price 42}])))
+```
+
+Callbacks read `(:first-name (:data p))` under **either** recipe — camel-keyed
+rows resolve on the normal camel path, literal kebab rows through the
+[literal-key fallback](#callbacks-what-your-functions-receive-and-return). That
+fallback is a *callback lookup* rule only — it does not rewrite row objects or
+column fields, so it cannot rescue a keyword `:field` pointed at a kebab-keyed
+row. Pick a row, pick the matching field.
+
+Neither recipe is free: converting 100k rows measured ~600ms against ~9ms for
+supplying JS directly ([ADR 0003](adr/0003-row-data-js-by-contract.md)), which
+is why `#js` rows above are the primary path and these are the answer for
+consumers who already hold CLJS data. `raw` is not a third recipe — it hands
+AG Grid the CLJS collection unconverted, which is a way to render nothing.
+
 ## Callbacks: what your functions receive and return
 
 Functions found in the options tree are auto-wrapped in both directions:
@@ -113,7 +161,8 @@ covers callbacks that receive row data directly. Camel priority means AG Grid's
 own vocabulary and camel-keyed data never change meaning. Note this is a
 *callback lookup* rule only — rendering is separate, so a kebab-keyed row
 still needs a string column field (`{:field "first-name"}`) to show up in a
-cell.
+cell; see [If your rows are CLJS data](#if-your-rows-are-cljs-data) for both
+row/field pairings.
 
 Callback beans are a read view, not a write channel. `assoc`, `dissoc`,
 `update`, and friends are ordinary CLJS collection operations over a snapshot
@@ -158,7 +207,11 @@ entirely (`goog.DEBUG` false dead-code-eliminates the validation code and the
 key registry). They never reject or alter what AG Grid receives; the
 open-surface guarantee holds. You get:
 
-- **JS-by-contract nudge** — a data-carrying key received a CLJS collection.
+- **JS-by-contract nudge** — a row key (`:row-data`, `:pinned-top-row-data`, …)
+  received a CLJS collection; it points here for the two recipes above.
+- **Context nudge** — `:context` received a CLJS collection. Unlike rows it
+  *does* convert, just lossily (keys camelize, keyword values become strings),
+  so the nudge points at `raw` rather than at a recipe.
 - **XSS nudge** — a renderer function returned an HTML-looking string (AG Grid
   injects it via `innerHTML`); see [Cell rendering](cell-rendering.md).
 - **Set / namespaced-keyword warnings** — as described above.

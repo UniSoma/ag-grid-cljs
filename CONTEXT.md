@@ -16,6 +16,10 @@ _Avoid_: passthrough, opaque wrapper
 The row-data rule: consumers supply plain JS row objects directly; the wrapper never converts row collections in either direction.
 _Avoid_: eager conversion, proxy rows
 
+**Row recipe**:
+One of the two supported pairings for turning CLJS data into renderable rows — camel-keyed rows with keyword `:field`s, or literal kebab-keyed rows with string `:field`s. A recipe is the pairing, not the conversion call; half a recipe renders blank cells.
+_Avoid_: row conversion, clj->js recipe
+
 **Options map**:
 The plain EDN map at the bottom of the API — kebab-case keys, the full AG Grid options surface reachable by ordinary `assoc`.
 _Avoid_: config, grid spec
