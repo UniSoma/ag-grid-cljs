@@ -40,6 +40,14 @@ _Avoid_: linting, schema check
 The always-on dev diagnostic comparing each column's emitted field string against the keys of a sampled row, warning once per field with a did-you-mean. Registry-free — it compares two consumer-supplied things — so it needs no opt-in.
 _Avoid_: field validation, column validation
 
+**Callback bean**:
+The lazy view a wrapped callback receives over each JS object argument and recursively reached object, resolving keyword lookups without converting the underlying value.
+_Avoid_: params bean, row bean, data bean
+
+**Literal-key fallback**:
+The callback bean's lookup rule: a keyword resolves to its camelized property when that property is present, and to its literal name otherwise.
+_Avoid_: kebab fallback, verbatim-key fallback
+
 **GridHandle**:
 The value returned by `create-grid!` — `{:api :opts}` — carrying the raw GridApi (via `grid-api`) and the last-applied options for diffing.
 _Avoid_: grid instance, grid ref
