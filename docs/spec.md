@@ -44,7 +44,7 @@ This table indexes the v1 design effort — ADRs 0001–0015. Decisions taken af
 
 Consciously out of this effort; a future redraw of the destination starts fresh:
 
-- **Shipping v0.1** — Clojars release engineering, versioning, CI publish.
+- **Shipping v0.1** — Clojars release engineering, versioning, CI publish. Redrawn since, in [ADR 0016](adr/0016-clojars-release-engineering-v0.1.md) and `build.clj`.
 - **A full Malli/spec typed schema layer** over the options surface — rejected as a maintenance treadmill; the key registry is the ceiling.
 - **Framework adapter code** — Reagent/UIx renderer sugar and any reactive/full-state-declarative layer (ADR 0012 names the seams a future effort would wrap).
 
