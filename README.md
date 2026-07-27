@@ -76,7 +76,12 @@ npm install
 npm run dev           # dev app at http://localhost:8080
 npm test              # node contract suite
 npm run test:browser  # committed browser suite (Playwright-driven headless Chromium)
+bb bench              # key-transform/callback-bean microbenchmarks, dev + release
 ```
+
+`bb bench` is a measurement tool, not a check — it prints nanoseconds per call
+and asserts nothing. Recorded runs and methodology:
+[docs/research/key-transform-benchmarks.md](docs/research/key-transform-benchmarks.md).
 
 The browser suite (ADR 0015) runs cljs.test assertions inside the real AG Grid
 runtime; a Playwright driver serves the compiled build, drives headless

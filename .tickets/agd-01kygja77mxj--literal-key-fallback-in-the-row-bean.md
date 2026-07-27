@@ -6,7 +6,7 @@ type: feature
 priority: 2
 mode: afk
 created: '2026-07-27T01:16:31.859984302Z'
-updated: '2026-07-27T12:16:01.034503384Z'
+updated: '2026-07-27T14:14:04.523637061Z'
 tags:
 - conversion
 - bean
@@ -86,7 +86,7 @@ Do not add a `WeakMap`, inspect the first row, scan row keys, subscribe to grid 
 
 Reuse the resolver in the keyword form of `with-row-id`; keep its callback raw and allocation-free. Do not change vendored cljs-bean bodies. Caching nested bean instances is optional implementation work, not observable contract.
 
-Optimize key transforms first (agd-01kygjftnhwa), then record warmed node measurements and realistic browser render plus 100k-row sort/filter measurements. If deterministic fallback misses the performance bar, do not replace it with shape sampling; retain camel-normalized rows as the documented recipe. `(ag/raw f)` remains the explicit hot-path opt-out.
+Key transforms are already optimized (agd-01kygjftnhwa; methodology and recorded runs in docs/research/key-transform-benchmarks.md — nested-bean construction is the remaining measured cost, and ADR 0018 §8 permits caching nested beans). Record realistic browser render and 100k-row sort/filter measurements. If deterministic fallback misses the performance bar, do not replace it with shape sampling; retain camel-normalized rows as the documented recipe. `(ag/raw f)` remains the explicit hot-path opt-out.
 
 ## Verification
 
@@ -94,3 +94,13 @@ Optimize key transforms first (agd-01kygjftnhwa), then record warmed node measur
 - Browser test: a string field renders a kebab-keyed row and a real AG Grid callback reads the same key.
 - Vendoring check: no changes beyond the namespace, `^:no-doc`, and license-header modifications already documented in THIRD-PARTY.md.
 - Performance evidence: optimized baseline versus broad fallback in node and realistic browser paths.
+
+## Notes
+
+**2026-07-27T13:49:34.226012223Z**
+
+Post-transform-optimization benchmarks for the ADR 0018 prototype are recorded in docs/research/key-transform-benchmarks.md (run 'bb bench'; the bench-local prototype lives in src/bench/ag_grid_cljs/bench/transforms.cljs). Release-build headline: the fallback branch itself is cheap — kebab and camel rows cost the same (706 vs 692 ns for a nested :first-name read) and dashless reads are free (18.7 vs 20.6 ns on a live bean). The cost is nested-object construction: a resolver closure plus a bean per reached object takes ':col-def on a live bean' from 20 to 384 ns and the nested :data read from 221 to 692 ns. So the open perf question is nested-bean construction (ADR 0018 §8 already permits caching a nested bean), not the lookup law. Browser render and 100k-row sort/filter measurements are still outstanding.
+
+**2026-07-27T13:56:12.793338458Z**
+
+Correction to the earlier bench note: the recorded numbers were re-measured after the lookup memo changed. Release headline is unchanged in shape — dashless reads free (25.5 vs 20.9 ns on a live bean), kebab and camel rows equal (723 vs 683 ns), nested-object construction the cost (:col-def on a live bean 20 -> 372 ns, nested :data read 207 -> 683 ns). See docs/research/key-transform-benchmarks.md for the current table.

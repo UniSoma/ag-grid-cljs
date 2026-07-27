@@ -8,20 +8,42 @@
 ;; --- key transforms ---------------------------------------------------------
 
 (defn kebab->camel
-  "Pure mechanical transform: :row-data -> \"rowData\". Already-camel
-  input passes unchanged (no segments to join)."
-  [s]
-  (let [[head & tail] (str/split s #"-")]
-    (apply str head (map (fn [seg]
-                           (if (seq seg)
-                             (str (str/upper-case (subs seg 0 1)) (subs seg 1))
-                             seg))
-                         tail))))
+  "Pure mechanical transform: :row-data -> \"rowData\".
+
+  Hot path (ADR 0018 §7): a dashless input — already-camel keys, and every
+  common callback key — returns the argument itself, with no split and no
+  intermediate strings."
+  [^string s]
+  (if (== -1 (.indexOf s "-"))
+    s
+    (let [segs (.split s "-")
+          n    (alength segs)]
+      (loop [i 1, acc (aget segs 0)]
+        (if (< i n)
+          (let [^string seg (aget segs i)]
+            (recur (inc i)
+                   (if (pos? (.-length seg))
+                     (str acc (.toUpperCase (.charAt seg 0)) (subs seg 1))
+                     acc)))
+          acc)))))
+
+(def ^:private ^js lower-only-re
+  ;; A string made only of these characters is already its own lower-case form
+  ;; and cannot match the camel-boundary regex, so camel->kebab is identity on
+  ;; it. Deliberately ASCII-only: anything else (including non-ASCII
+  ;; lower-case) takes the slow path and keeps its current result.
+  #"^[a-z0-9_$-]*$")
 
 (defn camel->kebab
-  "Reverse transform for callback-params beans: \"rowIndex\" -> \"row-index\"."
-  [s]
-  (str/lower-case (str/replace s #"([a-z0-9])([A-Z])" "$1-$2")))
+  "Reverse transform for callback-params beans: \"rowIndex\" -> \"row-index\".
+
+  Hot path (ADR 0018 §7): an already-lower-case input — every dashless
+  callback key, and kebab-keyed consumer data — returns the argument itself,
+  with no regex replacement and no lower-casing."
+  [^string s]
+  (if (.test lower-only-re s)
+    s
+    (str/lower-case (str/replace s #"([a-z0-9])([A-Z])" "$1-$2"))))
 
 ;; --- dev warnings -----------------------------------------------------------
 
@@ -50,6 +72,42 @@
 
 (declare ->js)
 
+;; --- callback-bean lookup ---------------------------------------------------
+
+(def ^:private prop-cache-limit
+  ;; Explicit bound (agd-01kygjftnhwa). Entries are dashed lookup keys, which in
+  ;; practice are the keywords written in consumer callbacks — but a caller can
+  ;; also reach here with a keyword built from runtime data, e.g.
+  ;; (get (:data p) (keyword col-id)), so the bound is what keeps this small.
+  512)
+
+(def ^:private prop-cache (js/Map.))
+
+(defn lookup-prop
+  "kebab->camel over a callback-bean lookup key, memoized by name under an
+  explicit bound. Dashless keys — :value, :data, :node, :api, :id — return
+  their name directly and never touch the cache. The reverse direction
+  (prop->key) stays uncached: it receives arbitrary JS property names.
+
+  Keying by name rather than by keyword identity is deliberate: dev builds do
+  not hoist keyword constants, so an identity-keyed cache would miss on every
+  lookup in exactly the build consumers develop against."
+  [k]
+  (let [s (name k)]
+    (if (== -1 (.indexOf s "-"))
+      s
+      (let [hit (.get prop-cache s)]
+        (if (undefined? hit)
+          (let [prop (kebab->camel s)]
+            ;; Reset rather than stop caching at the bound: keys derived from
+            ;; runtime data must not be able to fill it once and permanently
+            ;; starve the real lookup sites.
+            (when (>= (.-size prop-cache) prop-cache-limit)
+              (.clear prop-cache))
+            (.set prop-cache s prop)
+            prop)
+          hit)))))
+
 (defn params-bean
   "Lazy kebab-keyed view over a JS callback-params object. A view, not a
   copy: only accessed keys pay conversion; the underlying JS object is
@@ -57,7 +115,7 @@
   [o]
   (bean/bean o
              :prop->key (comp keyword camel->kebab)
-             :key->prop (comp kebab->camel name)
+             :key->prop lookup-prop
              :recursive true))
 
 (defn- wrap-fn

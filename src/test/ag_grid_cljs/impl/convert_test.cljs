@@ -9,6 +9,27 @@
   (is (= "rowData" (c/kebab->camel "rowData")) "already-camel passes unchanged")
   (is (= "row-index" (c/camel->kebab "rowIndex"))))
 
+(deftest key-transform-edges
+  (testing "kebab->camel is unchanged by the no-dash fast path"
+    (is (= "" (c/kebab->camel "")))
+    (is (= "value" (c/kebab->camel "value")))
+    (is (= "rowDATA" (c/kebab->camel "row-DATA")) "segment case beyond the first char is kept")
+    (is (= "a1" (c/kebab->camel "a-1")) "a digit segment has no upper-case form")
+    (is (= "aB" (c/kebab->camel "a--b")) "empty segments contribute nothing")
+    (is (= "A" (c/kebab->camel "-a")) "a leading dash upper-cases the first segment")
+    (is (= "a" (c/kebab->camel "a-")) "a trailing dash contributes nothing")
+    (is (= "" (c/kebab->camel "-"))))
+  (testing "camel->kebab is unchanged by the no-upper-case fast path"
+    (is (= "" (c/camel->kebab "")))
+    (is (= "value" (c/camel->kebab "value")))
+    (is (= "first-name" (c/camel->kebab "first-name")) "already-kebab passes unchanged")
+    (is (= "abc" (c/camel->kebab "ABC")) "all-caps still lower-cases")
+    (is (= "row-index2" (c/camel->kebab "rowIndex2")))
+    (is (= "col-id" (c/camel->kebab "colID")) "only the first boundary of a run splits")
+    (is (= "value1" (c/camel->kebab "value1")) "no digit-letter boundary")
+    (is (= "é" (c/camel->kebab "é")) "non-ASCII lower-case is untouched")
+    (is (= "é" (c/camel->kebab "É")) "non-ASCII upper-case still lower-cases")))
+
 (deftest map-keys
   (let [o (c/->js {:row-height 42 "literalKey" 1 :rowData nil})]
     (is (= 42 (unchecked-get o "rowHeight")))
@@ -60,6 +81,22 @@
     (let [f (fn [p] (unchecked-get p "value"))
           passed (unchecked-get (c/->js {:value-getter (c/raw f)}) "valueGetter")]
       (is (identical? f passed)))))
+
+(deftest bean-lookup-past-the-prop-cache-bound
+  ;; The bean's key->prop memo is explicitly bounded (agd-01kygjftnhwa): far more
+  ;; distinct keys than the bound must still resolve, and must not disturb an
+  ;; ordinary lookup that follows them.
+  (let [n 1200
+        o (reduce (fn [o i]
+                    (unchecked-set o (str "key" i "Value") i)
+                    o)
+                  #js {"rowIndex" 7}
+                  (range n))
+        b (c/params-bean o)
+        read-all #(map (fn [i] (get b (keyword (str "key" i "-value")))) (range n))]
+    (is (= (range n) (read-all)))
+    (is (= (range n) (read-all)) "a second pass resolves the same way")
+    (is (= 7 (:row-index b)) "a literal keyword still resolves after them")))
 
 (deftest scalar-args-not-beaned
   (let [f (fn [x] x)
