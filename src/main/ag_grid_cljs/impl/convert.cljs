@@ -83,40 +83,91 @@
 
 (def ^:private prop-cache (js/Map.))
 
-(defn lookup-prop
-  "kebab->camel over a callback-bean lookup key, memoized by name under an
-  explicit bound. Dashless keys — :value, :data, :node, :api, :id — return
-  their name directly and never touch the cache. The reverse direction
-  (prop->key) stays uncached: it receives arbitrary JS property names.
+(defn- cached-camel
+  "kebab->camel for a dashed lookup key, memoized by name under an explicit
+  bound. The reverse direction (prop->key) stays uncached: it receives
+  arbitrary JS property names.
 
   Keying by name rather than by keyword identity is deliberate: dev builds do
   not hoist keyword constants, so an identity-keyed cache would miss on every
   lookup in exactly the build consumers develop against."
+  [^string s]
+  (let [hit (.get prop-cache s)]
+    (if (undefined? hit)
+      (let [prop (kebab->camel s)]
+        ;; Reset rather than stop caching at the bound: keys derived from
+        ;; runtime data must not be able to fill it once and permanently
+        ;; starve the real lookup sites.
+        (when (>= (.-size prop-cache) prop-cache-limit)
+          (.clear prop-cache))
+        (.set prop-cache s prop)
+        prop)
+      hit)))
+
+(defn lookup-prop
+  "kebab->camel over a callback-bean lookup key, memoized via cached-camel.
+  Dashless keys — :value, :data, :node, :api, :id — return their name
+  directly and never touch the cache."
   [k]
   (let [s (name k)]
     (if (== -1 (.indexOf s "-"))
       s
-      (let [hit (.get prop-cache s)]
-        (if (undefined? hit)
-          (let [prop (kebab->camel s)]
-            ;; Reset rather than stop caching at the bound: keys derived from
-            ;; runtime data must not be able to fill it once and permanently
-            ;; starve the real lookup sites.
-            (when (>= (.-size prop-cache) prop-cache-limit)
-              (.clear prop-cache))
-            (.set prop-cache s prop)
-            prop)
-          hit)))))
+      (cached-camel s))))
+
+(defn- bean-key->prop
+  "Object-local lookup resolver (ADR 0018 §1): a keyword resolves to its
+  camelized property when that property is present on o, otherwise to its
+  literal name. Presence, not truthiness — a present nil/false/undefined
+  camel value still wins. Dashless keys are their own camel form and skip
+  both the transform and the presence test. Presence is own-property
+  (Object.hasOwn), so inherited members — Object.prototype.valueOf under
+  :value-of, toString under :to-string — cannot shadow a literal data key."
+  [o]
+  (fn [k]
+    (let [s (name k)]
+      (if (== -1 (.indexOf s "-"))
+        s
+        (let [camel (cached-camel s)]
+          (if ^boolean (js/Object.hasOwn o camel) camel s))))))
+
+(declare params-bean)
+
+(def ^:private bean-prop->key (comp keyword camel->kebab))
+
+(def ^:private nested-bean-cache
+  ;; Nested-bean memo keyed weakly by the wrapped JS object (ADR 0018 §8:
+  ;; bean identity is an implementation detail; equivalent views suffice).
+  ;; The win is nested row objects, which are stable across the many callback
+  ;; calls a sort or filter makes — without this every (:data p) rebuilds a
+  ;; resolver closure and a bean per call (measured 3x on a 100k-row sort).
+  ;; Scoped to transform-reached objects only: root callback params are fresh
+  ;; per call, and millions of dead WeakMap keys cost more than they save.
+  ;; Entries die with their objects; lookups still test presence per read,
+  ;; so caching changes cost, not semantics.
+  (js/WeakMap.))
+
+(defn- bean-transform [x]
+  (when (object? x)
+    (or (.get nested-bean-cache x)
+        (let [b (params-bean x)]
+          (.set nested-bean-cache x b)
+          b))))
 
 (defn params-bean
-  "Lazy kebab-keyed view over a JS callback-params object. A view, not a
-  copy: only accessed keys pay conversion; the underlying JS object is
-  reachable via ag-grid-cljs.impl.bean/object."
+  "Lazy kebab-keyed view over a JS callback object. A view, not a copy: only
+  accessed keys pay conversion; the underlying JS object is reachable via
+  ag-grid-cljs.impl.bean/object.
+
+  Lookups follow the callback-bean law (ADR 0018): camel-first,
+  literal-second, decided per object. The :transform hands every recursively
+  reached plain object — nested objects and object elements inside arrays —
+  its own object-aware bean, so each one tests presence on itself."
   [o]
   (bean/bean o
-             :prop->key (comp keyword camel->kebab)
-             :key->prop lookup-prop
-             :recursive true))
+             :prop->key bean-prop->key
+             :key->prop (bean-key->prop o)
+             :recursive true
+             :transform bean-transform))
 
 (defn- wrap-fn
   "Auto-wrap a user fn found in the options tree: JS-object args arrive as

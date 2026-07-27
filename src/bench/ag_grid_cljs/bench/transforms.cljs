@@ -1,7 +1,7 @@
 (ns ag-grid-cljs.bench.transforms
   "Warmed node microbenchmarks for the key transforms and callback-bean lookup
-  (ticket agd-01kygjftnhwa; ADR 0018 §7 asks for these numbers before the
-  literal-key fallback is judged).
+  (ticket agd-01kygjftnhwa; ADR 0018 §7 asks for these numbers to judge the
+  literal-key fallback, shipped by ticket agd-01kygja77mxj).
 
   Not library code and not on the test path: `bb bench` compiles this build in
   both dev and release and runs each under node. Methodology and recorded
@@ -11,8 +11,7 @@
   cannot eliminate the work being timed."
   (:require [ag-grid-cljs.impl.bean :as bean]
             [ag-grid-cljs.impl.convert :as convert]
-            [clojure.string :as str]
-            [goog.object :as gobj]))
+            [clojure.string :as str]))
 
 (def ^:private warmup-iterations 50000)
 (def ^:private measured-iterations 500000)
@@ -33,29 +32,17 @@
   (println (str (.padEnd (str label) 44 ".")
                 " " (.padStart (.toFixed (run f) 1) 8) " ns")))
 
-;; --- ADR 0018 fallback prototype -------------------------------------------
-;; Bench-local prototype of the literal-key fallback (ADR 0018 §1–2), measured
-;; here so ticket agd-01kygja77mxj can decide against a real baseline. The
-;; shipped params-bean does not have it yet.
+;; --- pre-fallback callback bean ----------------------------------------------
+;; The shipped params-bean as it stood before the ADR 0018 literal-key fallback
+;; landed (ticket agd-01kygja77mxj): mechanical kebab->camel lookup, no
+;; per-object resolver, no :transform. Kept bench-local so the recorded
+;; before/after comes from one run on one machine.
 
-(defn- literal-key-resolver
-  "Object-local camel-first, literal-second resolver: one closure per bean."
-  [o]
-  (fn [k]
-    (let [literal (name k)]
-      (if (== -1 (.indexOf literal "-"))
-        literal
-        (let [camel (convert/kebab->camel literal)]
-          (if (gobj/containsKey o camel) camel literal))))))
-
-(defn- literal-key-bean [o]
+(defn- mechanical-bean [o]
   (bean/bean o
              :prop->key (comp keyword convert/camel->kebab)
-             :key->prop (literal-key-resolver o)
-             :recursive true
-             ;; every recursively reached object gets its own resolver closure
-             :transform (fn [x] (when (and (object? x) (not (array? x)))
-                                  (literal-key-bean x)))))
+             :key->prop convert/lookup-prop
+             :recursive true))
 
 ;; --- pre-fast-path baselines ------------------------------------------------
 ;; The transform bodies as they stood before this ticket, kept here so the
@@ -118,9 +105,9 @@
 (def ^:private camel-params (params camel-row))
 (def ^:private kebab-params (params kebab-row))
 
+(def ^:private mechanical-live-bean (mechanical-bean camel-params))
 (def ^:private shipped-bean (convert/params-bean camel-params))
-(def ^:private prototype-bean (literal-key-bean camel-params))
-(def ^:private kebab-prototype-bean (literal-key-bean kebab-params))
+(def ^:private kebab-shipped-bean (convert/params-bean kebab-params))
 
 ;; --- suites -----------------------------------------------------------------
 
@@ -141,32 +128,32 @@
   (report "lookup-prop :row-index (memo hit)" #(convert/lookup-prop :row-index)))
 
 (defn- flat-lookup []
-  (println "\nflat callback-bean lookup (shipped params-bean)")
+  (println "\nflat callback-bean lookup (pre-fallback mechanical bean)")
   (report "baseline construct + read :value" #(:value (baseline-bean camel-params)))
   (report "baseline construct + read :row-index" #(:row-index (baseline-bean camel-params)))
-  (report "construct + read :value" #(:value (convert/params-bean camel-params)))
+  (report "construct + read :value" #(:value (mechanical-bean camel-params)))
   (report "construct + read :row-index"
-          #(:row-index (convert/params-bean camel-params)))
-  (report "read :value on a live bean" #(:value shipped-bean))
-  (report "read :col-def on a live bean" #(:col-def shipped-bean))
+          #(:row-index (mechanical-bean camel-params)))
+  (report "read :value on a live bean" #(:value mechanical-live-bean))
+  (report "read :col-def on a live bean" #(:col-def mechanical-live-bean))
   (report "construct + read :value (unbounded memo, both directions)"
           #(:value (memo-bean camel-params)))
   (report "construct + read :row-index (unbounded memo, both directions)"
           #(:row-index (memo-bean camel-params)))
   (report "construct + nested read :first-name of :data"
-          #(:first-name (:data (convert/params-bean camel-params)))))
+          #(:first-name (:data (mechanical-bean camel-params)))))
 
 (defn- adr-0018-fallback []
-  (println "\nADR 0018 literal-key fallback prototype")
-  (report "construct + read :value" #(:value (literal-key-bean camel-params)))
-  (report "read :value on a live bean" #(:value prototype-bean))
-  (report "read :col-def on a live bean" #(:col-def prototype-bean))
+  (println "\nADR 0018 literal-key fallback (shipped params-bean)")
+  (report "construct + read :value" #(:value (convert/params-bean camel-params)))
+  (report "read :value on a live bean" #(:value shipped-bean))
+  (report "read :col-def on a live bean" #(:col-def shipped-bean))
   (report "camel row: nested read :first-name of :data"
-          #(:first-name (:data (literal-key-bean camel-params))))
+          #(:first-name (:data (convert/params-bean camel-params))))
   (report "kebab row: nested read :first-name of :data"
-          #(:first-name (:data (literal-key-bean kebab-params))))
+          #(:first-name (:data (convert/params-bean kebab-params))))
   (report "kebab row: nested read via a live bean"
-          #(:first-name (:data kebab-prototype-bean))))
+          #(:first-name (:data kebab-shipped-bean))))
 
 (defn ^:export main []
   (println (str "node " js/process.version

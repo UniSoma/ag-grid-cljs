@@ -130,6 +130,26 @@
     (let [f (get-row-id-fn (grid/with-row-id {} :first-name))]
       (is (= "Ada" (f #js {:data #js {:firstName "Ada"}}))))))
 
+(deftest with-row-id-keyword-follows-the-callback-bean-lookup-law
+  ;; ADR 0018 §1/§4: camel when present, literal otherwise — same law as the
+  ;; callback beans, but on the raw JS row with no bean allocation.
+  (testing "a literal dashed row key resolves when the camel spelling is absent"
+    (let [f (get-row-id-fn (grid/with-row-id {} :record-id))]
+      (is (= "r1" (f #js {:data #js {"record-id" "r1"}})))))
+  (testing "camel keeps priority when both spellings are present"
+    (let [f (get-row-id-fn (grid/with-row-id {} :record-id))]
+      (is (= "camel" (f #js {:data #js {:recordId "camel" "record-id" "literal"}})))
+      (is (= "false" (f #js {:data #js {:recordId false "record-id" "literal"}}))
+          "presence, not truthiness, decides")))
+  (testing "heterogeneous rows resolve independently of order"
+    (let [f (get-row-id-fn (grid/with-row-id {} :record-id))]
+      (is (= ["camel" "literal"]
+             [(f #js {:data #js {:recordId "camel"}})
+              (f #js {:data #js {"record-id" "literal"}})]))))
+  (testing "presence is own-property: inherited members don't shadow literal keys"
+    (let [f (get-row-id-fn (grid/with-row-id {} :value-of))]
+      (is (= "v" (f #js {:data #js {"value-of" "v"}}))))))
+
 (deftest with-row-id-fn-receives-bean-and-string-coerces
   (testing "a fn receives the kebab-bean params and its return is str-coerced"
     (let [f (get-row-id-fn (grid/with-row-id {} (fn [p] (:id (:data p)))))]

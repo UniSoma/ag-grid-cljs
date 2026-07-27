@@ -48,9 +48,10 @@
   EDN shape:
 
   - a keyword — `(with-row-id opts :id)` reads that field from each JS row
-    (`:first-name` reads `firstName`, kebab->camel like every other key) and
-    calls `str` on it. Compiles to a `raw` callback over the JS row, so the
-    per-row hot path allocates no bean.
+    following the callback-bean lookup law (ADR 0018): `:first-name` reads
+    `firstName` when that property is present, else the literal `\"first-name\"`.
+    Camel keeps priority; the value is `str`-coerced. Compiles to a `raw`
+    callback over the JS row, so the per-row hot path allocates no bean.
   - a function — `(with-row-id opts (fn [p] (:id (:data p))))` receives the
     kebab-bean params (ADR 0010; `(:data p)` is the row) and its return is
     string-coerced. Wrap your own fn with `raw` to receive raw JS params.
@@ -66,8 +67,15 @@
   [opts id]
   (assoc opts :get-row-id
          (if (keyword? id)
-           (let [prop (convert/kebab->camel (name id))]
-             (raw (fn [^js params] (str (unchecked-get (.-data params) prop)))))
+           (let [literal (name id)
+                 camel   (convert/kebab->camel literal)]
+             (if (identical? literal camel)
+               (raw (fn [^js params] (str (unchecked-get (.-data params) literal))))
+               (raw (fn [^js params]
+                      (let [data (.-data params)]
+                        (str (unchecked-get data (if ^boolean (js/Object.hasOwn data camel)
+                                                   camel
+                                                   literal))))))))
            (fn [params] (str (id params))))))
 
 (defn- ->row-selection-mode

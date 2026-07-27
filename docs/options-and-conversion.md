@@ -102,6 +102,29 @@ Functions found in the options tree are auto-wrapped in both directions:
 - **Return values run forward through the converter** — a keyword becomes a
   camel string, `{:font-weight "bold"}` becomes a JS object, scalars are free.
 
+Keyword lookup on these beans follows one law: **camel when present, literal
+otherwise**. `(:row-index p)` reads `rowIndex`; if the camelized property is
+absent, the lookup falls back to the keyword's literal name, so
+`(:first-name (:data p))` also reads a row that carries `"first-name"` — the
+spelling bare `clj->js` produces. The decision is per object and per lookup
+(presence, not truthiness: a present `false` or `nil` camel value still wins),
+it applies recursively to nested objects and to objects inside arrays, and it
+covers callbacks that receive row data directly. Camel priority means AG Grid's
+own vocabulary and camel-keyed data never change meaning. Note this is a
+*callback lookup* rule only — rendering is separate, so a kebab-keyed row
+still needs a string column field (`{:field "first-name"}`) to show up in a
+cell.
+
+Callback beans are a read view, not a write channel. `assoc`, `dissoc`,
+`update`, and friends are ordinary CLJS collection operations over a snapshot
+or clone — they never mutate the underlying AG Grid params, row, or
+`RowNode.data`, and their results cross a non-raw callback return through the
+normal EDN→JS converter, where keyword keys camelize (a map derived from a
+`"first-name"` row comes back out as `firstName`). A callback that must mutate
+an AG Grid object or preserve literal property names on return should use
+`(ag/raw f)`, explicit JS objects and string keys, or unwrap the backing JS
+object and mutate it through JS/API calls.
+
 The full event and callback shape is its own topic; renderer functions in
 particular have their own article ([Cell rendering](cell-rendering.md)).
 

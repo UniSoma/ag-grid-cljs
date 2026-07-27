@@ -36,6 +36,14 @@
           :output-to  "target/bench.js"
           :main       ag-grid-cljs.bench.transforms/main}
 
+  ;; Realistic browser leg of the callback-bean benchmarks (ADR 0018 §7,
+  ;; ticket agd-01kygja77mxj): 100k-row render/sort/filter under the real
+  ;; AG Grid runtime. Release-only via `bb bench-browser`.
+  :browser-bench {:target     :browser
+                  :output-dir "target/browser-bench/js"
+                  :asset-path "/js"
+                  :modules    {:main {:init-fn ag-grid-cljs.bench.browser-grid/init}}}
+
   ;; Committed browser suite (ADR 0015): assertions stay in cljs.test inside the
   ;; real AG Grid runtime; the Playwright driver (test/browser/run.mjs) serves
   ;; target/browser-test, drives headless Chromium, and reads the summary the

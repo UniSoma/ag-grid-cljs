@@ -1,12 +1,13 @@
 ---
 id: agd-01kygja77mxj
 title: Literal-key fallback in callback beans
-status: open
+status: closed
 type: feature
 priority: 2
 mode: afk
 created: '2026-07-27T01:16:31.859984302Z'
-updated: '2026-07-27T14:14:04.523637061Z'
+updated: '2026-07-27T15:00:05.603928205Z'
+closed: '2026-07-27T15:00:05.603928205Z'
 tags:
 - conversion
 - bean
@@ -18,35 +19,35 @@ deps:
 - agd-01kygjftnhwa
 acceptance:
 - title: 'Literal lookup works: (:first-name (:data p)) reads "first-name"'
-  done: false
+  done: true
 - title: Camel lookup remains compatible and wins when both spellings are present, including falsy camel values
-  done: false
+  done: true
 - title: Fallback reaches nested-only dashed keys and object elements inside arrays
-  done: false
+  done: true
 - title: Heterogeneous camel and kebab rows work regardless of row order
-  done: false
+  done: true
 - title: AG Grid props retain camel priority on callback params and RowNode objects
-  done: false
+  done: true
 - title: Direct-data callbacks and RowNode.data receive the same callback-bean lookup law
-  done: false
+  done: true
 - title: with-row-id keyword lookup supports camel and literal dashed row keys without bean allocation
-  done: false
+  done: true
 - title: Implementation has no row-shape scan, per-grid gate, GridApi WeakMap, or registry dependency
-  done: false
+  done: true
 - title: A browser test renders a string-field kebab row and reads it through a real callback
-  done: false
+  done: true
 - title: Raw callbacks remain unbeaned and unchanged
-  done: false
+  done: true
 - title: Vendored cljs-bean bodies have no changes beyond those already documented in THIRD-PARTY.md
-  done: false
+  done: true
 - title: Node and realistic browser performance measurements are recorded after key-transform optimization
-  done: false
+  done: true
 - title: Callback bean writes are documented as unsupported for AG Grid object mutation
-  done: false
+  done: true
 - title: Write-like operations over callback beans do not become fallback-aware mutation semantics
-  done: false
+  done: true
 - title: Callback return conversion remains the normal EDN->JS path and may camelize bean-derived keyword keys
-  done: false
+  done: true
 ---
 
 ## Description
@@ -104,3 +105,11 @@ Post-transform-optimization benchmarks for the ADR 0018 prototype are recorded i
 **2026-07-27T13:56:12.793338458Z**
 
 Correction to the earlier bench note: the recorded numbers were re-measured after the lookup memo changed. Release headline is unchanged in shape — dashless reads free (25.5 vs 20.9 ns on a live bean), kebab and camel rows equal (723 vs 683 ns), nested-object construction the cost (:col-def on a live bean 20 -> 372 ns, nested :data read 207 -> 683 ns). See docs/research/key-transform-benchmarks.md for the current table.
+
+**2026-07-27T14:59:53.432337563Z**
+
+Review notes at implementation (commit fd954ea): (1) Presence is own-property — js-in was caught by review resolving :value-of to the inherited Object.prototype.valueOf, permanently shadowing a literal "value-of" row key; the resolver and with-row-id use js/Object.hasOwn, pinned by tests. (2) Beaning predicate boundary: the fallback law rides cljs-bean's existing plain-object (object?) predicate. Real class instances stay raw exactly as before — (:api p) keeps its ADR 0010 raw-GridApi contract, and a real browser RowNode reached as (:node p) or passed directly is still a raw class instance. Node tests model RowNode as a plain object (like the rest of the suite's fakes); the RowNode acceptance items hold at that level. Making class instances beanable would break (.method (:api p)) and Date cell values in comparators, so a uniform broadening was rejected. (3) Vendoring verified by inspection (git diff on the vendored files is empty); no automated diff-against-upstream check was built. (4) Nested-bean WeakMap memo is scoped to transform-reached objects — memoizing per-call root params objects measured worse (4.9s vs 2.6s on the 100k browser sort) from dead-key GC pressure.
+
+**2026-07-27T15:00:05.603928205Z**
+
+Shipped the ADR 0018 literal-key fallback (commit fd954ea). params-bean resolves keywords camel-first, literal-second per object: dashless keys stay on the direct path; dashed keys pay one bounded-memo transform plus an Object.hasOwn own-property presence test (prototype members cannot shadow literal keys). Its :transform gives every recursively reached plain object — nested objects and array elements — its own object-aware bean, with nested beans memoized in a WeakMap scoped to transform-reached objects (ADR 0018 §8). with-row-id's keyword form follows the same law bean-free. Raw callbacks and vendored cljs-bean untouched. Covered by 13 node tests plus a browser test where a string-field kebab row renders and a real value-getter reads the same key. Measurements recorded in docs/research/key-transform-benchmarks.md (bb bench / new bb bench-browser): node steady-state at parity with the pre-fallback bean; 100k-row browser sort ~20% over the pre-fallback wrapper (2.13 vs 1.78s), with :value-cache true (0.30s) and ag/raw (0.15s) as the hot-path recipes. Docs: options-and-conversion.md states the lookup law and that callback-bean writes are not AG Grid object mutation. Boundary note on the ticket: class instances (GridApi, real RowNode) remain raw per the existing object? predicate.
