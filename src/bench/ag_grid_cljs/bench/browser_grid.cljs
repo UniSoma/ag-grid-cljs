@@ -1,9 +1,9 @@
 (ns ag-grid-cljs.bench.browser-grid
-  "Realistic browser measurements for the callback-bean literal-key fallback
-  (ADR 0018 §7, ticket agd-01kygja77mxj): initial render plus 100k-row sort
-  and quick-filter on a value-getter column, with the per-cell read going
-  through (a) a raw JS getter, (b) the pre-fallback mechanical bean, and
-  (c, d) the shipped fallback bean over camel and kebab rows.
+  "Realistic browser measurements for callback-bean lookup and wrapping
+  (ADR 0018 §7; tickets agd-01kygja77mxj and agd-01kyj2jwkdkq): initial render
+  plus 100k-row sort and quick-filter on a value-getter column. Variants retain
+  the raw floor, historical baselines, shipped fixed arities, and the rejected
+  positional-constructor candidate for same-run comparisons.
 
   Not library code and not on the test path: `bb bench-browser` compiles this
   build in release mode and drives it with test/browser/bench.mjs. Recorded
@@ -47,6 +47,45 @@
    (fn [& args]
      (convert/->js (apply f (map (fn [a] (if (object? a) (mechanical-bean a) a)) args))))))
 
+;; Bench-only evidence for agd-01kyj2jwkdkq. Fixed arities shipped; positional
+;; construction was rejected because it couples to the vendored deftype's field
+;; order. Keep the candidate here to reproduce the same-run comparison.
+
+(def ^:private prototype-prop->key (comp keyword convert/camel->kebab))
+(def ^:private prototype-nested-cache (js/WeakMap.))
+
+(declare positional-bean)
+
+(defn- prototype-key->prop [o]
+  (fn [k]
+    (let [literal (name k)]
+      (if (== -1 (.indexOf literal "-"))
+        literal
+        (let [camel (convert/lookup-prop k)]
+          (if ^boolean (js/Object.hasOwn o camel) camel literal))))))
+
+(defn- prototype-transform [x]
+  (when (object? x)
+    (or (.get prototype-nested-cache x)
+        (let [b (positional-bean x)]
+          (.set prototype-nested-cache x b)
+          b))))
+
+(defn- positional-bean [o]
+  (bean/->Bean nil o prototype-prop->key (prototype-key->prop o)
+               prototype-transform true nil nil nil))
+
+(defn- one-arg-wrap [bean-fn f]
+  (grid/raw
+   (fn [a]
+     (convert/->js (f (if (object? a) (bean-fn a) a))))))
+
+(defn- legacy-fallback-wrap [f]
+  (grid/raw
+   (fn [& args]
+     (convert/->js
+      (apply f (map #(if (object? %) (convert/params-bean %) %) args))))))
+
 (def ^:private read-first-name (fn [p] (:first-name (:data p))))
 
 (def ^:private variants
@@ -56,13 +95,19 @@
    {:label "auto-wrap, mechanical bean (pre-fallback), camel rows"
     :rows  :camel
     :vg    (mechanical-wrap read-first-name)}
-   {:label "auto-wrap, fallback bean (shipped), camel rows"
+   {:label "baseline, variadic wrapper + fallback bean, camel rows"
+    :rows  :camel
+    :vg    (legacy-fallback-wrap read-first-name)}
+   {:label "auto-wrap, fixed arities + fallback bean, camel rows"
     :rows  :camel
     :vg    read-first-name}
-   {:label "auto-wrap, fallback bean (shipped), kebab rows"
+   {:label "prototype, fixed arity + positional bean, camel rows"
+    :rows  :camel
+    :vg    (one-arg-wrap positional-bean read-first-name)}
+   {:label "auto-wrap, fixed arities + fallback bean, kebab rows"
     :rows  :kebab
     :vg    read-first-name}
-   {:label "auto-wrap, fallback bean + :value-cache true, camel rows"
+   {:label "auto-wrap, fixed arities + fallback bean + :value-cache true, camel rows"
     :rows  :camel
     :vg    read-first-name
     :opts  {:value-cache true}}])

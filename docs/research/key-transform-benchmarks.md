@@ -1,8 +1,8 @@
 # Key-transform and callback-bean benchmarks
 
-Numbers behind the transform fast paths (ticket agd-01kygjftnhwa) and the
-performance question ADR 0018 §7 asked about the literal-key fallback, answered
-by the shipped implementation (ticket agd-01kygja77mxj).
+Numbers behind the transform fast paths (ticket agd-01kygjftnhwa), the
+literal-key fallback (ticket agd-01kygja77mxj), and the callback-wrapper
+follow-up (ticket agd-01kyj2jwkdkq).
 
 ## Methodology
 
@@ -174,3 +174,46 @@ What this settles for ADR 0018 §7's decision:
   `:value-cache true` collapses per-comparison evaluation to once per row
   (0.30 s), and `(ag/raw f)` remains the full opt-out (0.15 s). Camel-normalized
   rows are not needed for performance, only as the zero-read-overhead recipe.
+
+## Callback-wrapper follow-up
+
+Ticket agd-01kyj2jwkdkq isolated the remaining per-call costs. The harness keeps
+a bench-local clone of the old variadic wrapper, so these before-and-after
+numbers come from one release build.
+
+### Node (one object argument, nested read, scalar return)
+
+| Variant                                      | ns/call |
+|----------------------------------------------|---------|
+| Raw JS property read                         | 3.4     |
+| Baseline variadic `map`/`apply` + params-bean | 475.9   |
+| Fixed 0–3 arities + params-bean              | 338.1   |
+| Fixed arity + positional `Bean` constructor  | 131.1   |
+| Params-bean, no return `->js`                 | 276.0   |
+| Positional constructor, no return `->js`     | 76.0    |
+
+Fixed arities remove rest-sequence, lazy-map, and `apply` allocation from common
+AG Grid callback shapes. They cut this Node path by 29%. The positional
+constructor shows that `bean/bean`'s variadic option parsing costs about 200 ns
+per root callback bean after advanced compilation. Scalar return conversion
+costs about 55–60 ns.
+
+### Browser (100k-row grid, pass 2)
+
+| Variant                                                   | render | sort   | quick-filter |
+|-----------------------------------------------------------|--------|--------|--------------|
+| Raw JS getter, camel rows                                 | 79.7   | 144.8  | 29.4         |
+| Mechanical bean (pre-fallback), camel rows                | 78.9   | 1703.5 | 87.9         |
+| Baseline variadic wrapper + fallback bean, camel rows     | 81.7   | 1985.8 | 97.8         |
+| Fixed arities + fallback bean, camel rows                 | 60.2   | 1575.2 | 84.7         |
+| Fixed arity + positional `Bean` constructor, camel rows   | 62.6   | 754.3  | 60.8         |
+| Fixed arities + fallback bean, kebab rows                 | 86.5   | 1661.8 | 90.3         |
+| Fixed arities + fallback bean + `:value-cache true`       | 86.9   | 268.9  | 30.3         |
+
+The shipped fixed-arity dispatch lowers the adversarial sort by 21%, from
+1.99 s to 1.58 s. The positional-constructor prototype lowers it to 0.75 s,
+about 5.2 times the raw floor instead of 13.7 times. It remains bench-only: a
+production call to `bean/->Bean` would bypass the public options API required by
+ADR 0018 §6 and couple the wrapper to the vendored deftype field order. The
+ticket rejected that maintenance cost because `:value-cache true` and `raw`
+already provide faster explicit paths for hot callbacks.

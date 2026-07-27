@@ -169,13 +169,24 @@
              :recursive true
              :transform bean-transform))
 
+(defn- wrap-arg [a]
+  (if (object? a) (params-bean a) a))
+
 (defn- wrap-fn
   "Auto-wrap a user fn found in the options tree: JS-object args arrive as
   lazy kebab beans, the return value runs through the forward converter.
+  Fixed 0–3 arities avoid rest/map/apply allocation for common AG Grid
+  callbacks; larger arities retain the same variadic behavior.
   (raw f) opts out entirely."
   [f]
-  (fn [& args]
-    (->js (apply f (map (fn [a] (if (object? a) (params-bean a) a)) args)))))
+  (fn
+    ([] (->js (f)))
+    ([a] (->js (f (wrap-arg a))))
+    ([a b] (->js (f (wrap-arg a) (wrap-arg b))))
+    ([a b c] (->js (f (wrap-arg a) (wrap-arg b) (wrap-arg c))))
+    ([a b c & more]
+     (->js (apply f (wrap-arg a) (wrap-arg b) (wrap-arg c)
+                  (map wrap-arg more))))))
 
 (defn- wrap-renderer-fn
   "Like wrap-fn, but dev-warns when the fn returns an HTML-looking string:

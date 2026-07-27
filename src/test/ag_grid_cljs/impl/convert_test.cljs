@@ -77,6 +77,16 @@
       (is (fn? wrapped))
       (is (= "bold" (unchecked-get ret "fontWeight")) "return forward-converted")
       (is (= "salary" (unchecked-get ret "seenField")))))
+  (testing "fixed and variadic callback arities bean every object argument"
+    (let [f       (fn [& xs]
+                    (mapv #(if (number? %) % (:value %)) xs))
+          wrapped (unchecked-get (c/->js {:callback f}) "callback")
+          arg     (fn [n] #js {:value n})]
+      (is (= [] (js->clj (wrapped))))
+      (is (= [1] (js->clj (wrapped (arg 1)))))
+      (is (= [1 2] (js->clj (wrapped (arg 1) 2))))
+      (is (= [1 2 3] (js->clj (wrapped (arg 1) 2 (arg 3)))))
+      (is (= [1 2 3 4] (js->clj (wrapped (arg 1) 2 (arg 3) 4))))))
   (testing "(raw f) opts out: raw JS params in, return as-is"
     (let [f (fn [p] (unchecked-get p "value"))
           passed (unchecked-get (c/->js {:value-getter (c/raw f)}) "valueGetter")]

@@ -1,7 +1,7 @@
 (ns ag-grid-cljs.bench.transforms
-  "Warmed node microbenchmarks for the key transforms and callback-bean lookup
-  (ticket agd-01kygjftnhwa; ADR 0018 §7 asks for these numbers to judge the
-  literal-key fallback, shipped by ticket agd-01kygja77mxj).
+  "Warmed node microbenchmarks for key transforms, callback-bean lookup, and
+  callback wrapping (tickets agd-01kygjftnhwa, agd-01kygja77mxj, and
+  agd-01kyj2jwkdkq).
 
   Not library code and not on the test path: `bb bench` compiles this build in
   both dev and release and runs each under node. Methodology and recorded
@@ -43,6 +43,74 @@
              :prop->key (comp keyword convert/camel->kebab)
              :key->prop convert/lookup-prop
              :recursive true))
+
+;; --- callback-wrapper construction candidates -------------------------------
+;; Bench-only evidence for agd-01kyj2jwkdkq: fixed arities shipped; positional
+;; construction was rejected because it couples to the vendored deftype's field
+;; order. Keep both baselines so future runs can reproduce the decision.
+
+(def ^:private prototype-prop->key (comp keyword convert/camel->kebab))
+
+(defn- prototype-key->prop [o]
+  (fn [k]
+    (let [literal (name k)]
+      (if (== -1 (.indexOf literal "-"))
+        literal
+        (let [camel (convert/lookup-prop k)]
+          (if ^boolean (js/Object.hasOwn o camel) camel literal))))))
+
+(def ^:private prototype-nested-cache (js/WeakMap.))
+
+(declare options-bean)
+
+(defn- prototype-transform [x]
+  (when (object? x)
+    (or (.get prototype-nested-cache x)
+        (let [b (options-bean x)]
+          (.set prototype-nested-cache x b)
+          b))))
+
+(defn- options-bean [o]
+  (bean/bean o
+             :prop->key prototype-prop->key
+             :key->prop (prototype-key->prop o)
+             :recursive true
+             :transform prototype-transform))
+
+(defn- positional-bean [o]
+  ;; Deliberately couples this bench-only candidate to the vendored deftype's
+  ;; generated constructor so we can measure option parsing in isolation.
+  (bean/->Bean nil o prototype-prop->key (prototype-key->prop o)
+               prototype-transform true nil nil nil))
+
+(defn- bean-arg [bean-fn a]
+  (if (object? a) (bean-fn a) a))
+
+(defn- fixed-arity-wrap
+  "Prototype of fixed 0–3 arities with the current variadic behavior as its
+  fallback. Common AG Grid one-argument callbacks avoid rest/map/apply."
+  [bean-fn f]
+  (fn
+    ([] (convert/->js (f)))
+    ([a] (convert/->js (f (bean-arg bean-fn a))))
+    ([a b] (convert/->js (f (bean-arg bean-fn a) (bean-arg bean-fn b))))
+    ([a b c] (convert/->js (f (bean-arg bean-fn a)
+                              (bean-arg bean-fn b)
+                              (bean-arg bean-fn c))))
+    ([a b c & more]
+     (convert/->js
+      (apply f (bean-arg bean-fn a)
+             (bean-arg bean-fn b)
+             (bean-arg bean-fn c)
+             (map #(bean-arg bean-fn %) more))))))
+
+(defn- fixed-arity-wrap-no-return-conversion [bean-fn f]
+  (fn [a] (f (bean-arg bean-fn a))))
+
+(defn- legacy-wrap [f]
+  (fn [& args]
+    (convert/->js
+     (apply f (map #(bean-arg convert/params-bean %) args)))))
 
 ;; --- pre-fast-path baselines ------------------------------------------------
 ;; The transform bodies as they stood before this ticket, kept here so the
@@ -109,6 +177,22 @@
 (def ^:private shipped-bean (convert/params-bean camel-params))
 (def ^:private kebab-shipped-bean (convert/params-bean kebab-params))
 
+(def ^:private read-first-name (fn [p] (:first-name (:data p))))
+(def ^:private raw-read-first-name (fn [^js p] (.. p -data -firstName)))
+(def ^:private legacy-wrapped-read (legacy-wrap read-first-name))
+(def ^:private shipped-wrapped-read
+  (unchecked-get (convert/->js {:f read-first-name}) "f"))
+(def ^:private fixed-options-wrapped-read
+  (fixed-arity-wrap options-bean read-first-name))
+(def ^:private fixed-shipped-wrapped-read
+  (fixed-arity-wrap convert/params-bean read-first-name))
+(def ^:private fixed-positional-wrapped-read
+  (fixed-arity-wrap positional-bean read-first-name))
+(def ^:private fixed-shipped-no-return-read
+  (fixed-arity-wrap-no-return-conversion convert/params-bean read-first-name))
+(def ^:private fixed-positional-no-return-read
+  (fixed-arity-wrap-no-return-conversion positional-bean read-first-name))
+
 ;; --- suites -----------------------------------------------------------------
 
 (defn- standalone-transforms []
@@ -155,6 +239,24 @@
   (report "kebab row: nested read via a live bean"
           #(:first-name (:data kebab-shipped-bean))))
 
+(defn- callback-wrapper-candidates []
+  (println "\ncallback wrapper candidates (one object arg, scalar return)")
+  (report "raw JS property read" #(raw-read-first-name camel-params))
+  (report "baseline variadic map/apply + params-bean"
+          #(legacy-wrapped-read camel-params))
+  (report "shipped fixed arities + params-bean"
+          #(shipped-wrapped-read camel-params))
+  (report "fixed arity + equivalent options bean"
+          #(fixed-options-wrapped-read camel-params))
+  (report "bench clone, fixed arity + params-bean"
+          #(fixed-shipped-wrapped-read camel-params))
+  (report "fixed arity + positional Bean constructor"
+          #(fixed-positional-wrapped-read camel-params))
+  (report "shipped params-bean, no return ->js"
+          #(fixed-shipped-no-return-read camel-params))
+  (report "positional constructor, no return ->js"
+          #(fixed-positional-no-return-read camel-params)))
+
 (defn ^:export main []
   (println (str "node " js/process.version
                 ", " measured-iterations " measured iterations"
@@ -163,4 +265,5 @@
   (standalone-transforms)
   (flat-lookup)
   (adr-0018-fallback)
+  (callback-wrapper-candidates)
   (println "\nsink:" (pr-str (unchecked-get js/globalThis "__benchSink"))))
