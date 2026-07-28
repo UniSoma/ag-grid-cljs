@@ -157,3 +157,77 @@
     (is (empty? (warns-for {"someArbitraryString" 1}))))
   (testing "namespaced keywords are skipped"
     (is (empty? (warns-for {:my.ns/whatever 1})))))
+
+;; --- class-rule keys (always-on, ADR 0019) ----------------------------------
+
+(def pred (constantly true))
+
+(defn class-warns-for [opts]
+  (capture #(v/check-class-rules! opts)))
+
+(deftest class-rule-keyword-key-names-emitted-class-and-fix
+  (let [w (class-warns-for {:row-class-rules {:row-warning pred}})]
+    (is (= 1 (count w)))
+    (let [msg (first w)]
+      (is (re-find #":row-class-rules key :row-warning" msg)
+          "names the option and the key as written")
+      (is (re-find #"\"rowWarning\"" msg)
+          "names the CSS class AG Grid actually receives")
+      (is (re-find #"Write \"row-warning\"" msg)
+          "names the string fix"))))
+
+(deftest class-rule-keys-that-survive-conversion-stay-silent
+  (testing "string keys are already correct"
+    (is (empty? (class-warns-for {:row-class-rules {"row-warning" pred}}))))
+  (testing "a dashless keyword emits its own name, so nothing is wrong"
+    (is (empty? (class-warns-for {:row-class-rules {:warning pred}}))))
+  (testing "an already-camel keyword is unchanged by conversion"
+    (is (empty? (class-warns-for {:row-class-rules {:rowWarning pred}})))))
+
+(deftest class-rule-namespaced-key-warns
+  ;; The namespace is dropped, so what the stylesheet must match is not what
+  ;; was written. Distinct from convert's generic dropped-namespace warning,
+  ;; which does not mention CSS.
+  (let [w (class-warns-for {:row-class-rules {:ui/row-warning pred}})]
+    (is (= 1 (count w)))
+    (is (re-find #"\"rowWarning\"" (first w)))))
+
+(deftest cell-class-rules-reached-in-every-coldef-position
+  (let [w (class-warns-for
+           {:column-defs [{:field :a :cell-class-rules {:in-leaf pred}}
+                          {:children [{:field :b
+                                       :cell-class-rules {:in-child pred}}]}]
+            :default-col-def {:cell-class-rules {:in-default pred}}
+            :auto-group-column-def {:cell-class-rules {:in-auto-group pred}}})
+        joined (apply str w)]
+    (is (= 4 (count w)))
+    (doseq [camel ["inLeaf" "inChild" "inDefault" "inAutoGroup"]]
+      (is (re-find (re-pattern camel) joined)
+          (str camel " position is walked")))))
+
+(deftest class-rule-warns-once-per-key
+  (let [w (class-warns-for
+           {:column-defs [{:field :a :cell-class-rules {:row-warning pred}}
+                          {:field :b :cell-class-rules {:row-warning pred}}]})]
+    (is (= 1 (count w)) "same key on two columns warns once, not per column")))
+
+(deftest class-rule-check-ignores-the-dev-validations-gate
+  ;; The whole point of the separate entry point: registry-free, so always on.
+  ;; The fixture enables validations, so disable explicitly here.
+  (v/disable!)
+  (is (= 1 (count (class-warns-for {:row-class-rules {:row-warning pred}})))
+      "warns with enable-dev-validations! off")
+  (is (empty? (warns-for {:fild :typo}))
+      "the gated checks really are off in this test"))
+
+(deftest class-rule-check-treats-opaque-values-as-opaque
+  (testing "a raw-wrapped column-defs subtree is never walked"
+    (is (empty? (class-warns-for
+                 {:column-defs (c/raw [{:cell-class-rules {:in-raw pred}}])}))))
+  (testing "a raw-wrapped class-rules map is never inspected"
+    (is (empty? (class-warns-for
+                 {:row-class-rules (c/raw #js {"row-warning" pred})}))))
+  (testing "non-map and absent values are no-ops"
+    (is (empty? (class-warns-for {})))
+    (is (empty? (class-warns-for {:row-class-rules nil})))
+    (is (nil? (v/check-class-rules! nil)))))

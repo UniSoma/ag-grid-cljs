@@ -246,6 +246,8 @@
   ;; it keeps validate the sole caller goog.DEBUG-gated so :advanced DCEs the
   ;; whole namespace + registry in production (ADR 0007 §1). Don't "simplify".
   (when ^boolean goog.DEBUG (validate/validate-options! opts))
+  ;; Always on, no enable-dev-validations! — registry-free (ADR 0019).
+  (when ^boolean goog.DEBUG (validate/check-class-rules! opts))
   (let [api (createGrid el (convert/->js opts))]
     ;; The field check is always on in dev — no enable-dev-validations! (ADR
     ;; 0017). It can only be installed here: addEventListener is unreachable
@@ -380,6 +382,9 @@
           (update-grid! {:pagination true})
           (update-grid! {:quick-filter-text \"ada\"}))"
   [handle new-opts]
+  ;; Checked on the PATCH: neither class-rules key is :initial? and :column-defs
+  ;; is an ordinary updatable key, so both can first appear here (ADR 0019).
+  (when ^boolean goog.DEBUG (validate/check-class-rules! new-opts))
   (let [{:keys [api opts warned]} handle]
     (doseq [k (keys new-opts)]
       (let [new-val (get new-opts k)]

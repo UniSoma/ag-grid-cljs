@@ -1,6 +1,6 @@
 (ns ag-grid-cljs.impl.validate
-  "Two dev-only diagnostics with opposite defaults (ADR 0017). Both are
-  warn-only: neither ever rejects or alters what AG Grid receives (ADR 0002).
+  "Three dev-only diagnostics, only the first gated (ADR 0017, ADR 0019). All
+  are warn-only: none ever rejects or alters what AG Grid receives (ADR 0002).
 
   DEV VALIDATIONS — position-aware validation of the EDN options map, run at the
   conversion boundary (ADR 0007 §4-5). It does the strictly-kebab-native layer
@@ -14,6 +14,11 @@
   opaque and never touched. OFF by default — ag-grid-cljs.core/
   enable-dev-validations! flips it on, because these checks test consumer keys
   against a registry pinned to one AG Grid version and so drift.
+
+  CLASS-RULE KEYS — check-class-rules!, which warns when a :row-class-rules or
+  :cell-class-rules key is a keyword conversion would rename, since those keys
+  are CSS class names the consumer coins and the stylesheet matches literally
+  (ADR 0019). ALWAYS ON, for the same reason as the field check: registry-free.
 
   FIELD CHECK — install-field-check!, which compares each column's emitted field
   string against the keys of one sampled row and warns once per field with a
@@ -44,6 +49,12 @@
   "Clear the dedup set (test helper)."
   []
   (reset! warned #{}))
+
+(defn disable!
+  "Turn the dev validations back off (test helper). enable! has no other
+  counterpart, and the always-on checks are only observable with the gate down."
+  []
+  (reset! enabled? false))
 
 (defn- warn-once! [object-name k msg]
   (let [sig [object-name k]]
@@ -171,6 +182,60 @@
     (validate-col-defs (:column-defs opts))
     (validate-col-def (:default-col-def opts))
     (validate-col-def (:auto-group-column-def opts))))
+
+;; --- class-rule keys (always-on, ADR 0019) ----------------------------------
+
+(defn- renamed-key?
+  "Would conversion change what AG Grid receives for this key? A dashed name
+  camelizes; a namespace is dropped. Anything else — a string, a dashless
+  keyword — arrives spelled exactly as written."
+  [k]
+  (and (keyword? k)
+       (or (some? (namespace k))
+           (not (== -1 (.indexOf ^string (name k) "-"))))))
+
+(defn- check-class-rule-keys!
+  "Warn once per renamed key in one class-rules map. `option` is the owning
+  option keyword, which also scopes dedup."
+  [option m]
+  (when (map? m)
+    (doseq [k (keys m) :when (renamed-key? k)]
+      (warn-once! option k
+                  (str option " key " k " emits the CSS class \""
+                       (convert/kebab->camel (name k))
+                       "\" — CSS class names are strings, not AG Grid"
+                       " vocabulary. Write \"" (name k) "\".")))))
+
+(declare check-col-defs!)
+
+(defn- check-col-item! [item]
+  (when (map? item)
+    (check-class-rule-keys! :cell-class-rules (:cell-class-rules item))
+    ;; One branch covers leaves and groups: a leaf's :children is nil, and a
+    ;; group carries no :cell-class-rules so its own lookup just misses.
+    (check-col-defs! (:children item))))
+
+(defn- check-col-defs! [xs]
+  (when (sequential? xs)
+    (doseq [item xs] (check-col-item! item))))
+
+(defn check-class-rules!
+  "Always-on check over the consumer-keyed class-rule options: a keyword key
+  that conversion would rename emits a CSS class the stylesheet cannot match,
+  and fails silently (ADR 0019). Registry-free, so no enable-dev-validations!
+  gate — unlike the four consumer-keyed options whose names are cited from
+  inside the options map, where a keyword key is correct and a keyword-key
+  warning would be a false positive (ADR 0019 §3).
+
+  Called with the full options map at creation and with the PATCH on update:
+  update-grid! is a merge differ, so anything already applied was checked when
+  it arrived."
+  [opts]
+  (when (and ^boolean goog.DEBUG (map? opts))
+    (check-class-rule-keys! :row-class-rules (:row-class-rules opts))
+    (check-col-defs! (:column-defs opts))
+    (check-col-item! (:default-col-def opts))
+    (check-col-item! (:auto-group-column-def opts))))
 
 ;; --- field check (always-on, ADR 0017) --------------------------------------
 ;; Reads the emitted JS off the live grid rather than the EDN options map: rows

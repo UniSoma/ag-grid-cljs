@@ -5,6 +5,7 @@
   accessor and channels dispatch onto it."
   (:require [ag-grid-cljs.core :as grid]
             [ag-grid-cljs.impl.convert :as convert]
+            [ag-grid-cljs.impl.validate :as validate]
             [cljs.test :refer [deftest is testing]]))
 
 (defn- fake-api
@@ -114,6 +115,17 @@
       (is (array? val))
       (is (= 2 (.-length val)) "the whole new column-defs value is forward-converted and shipped")
       (is (= "b" (unchecked-get (aget val 1) "field"))))))
+
+(deftest update-grid!-checks-class-rule-keys-on-the-patch
+  ;; :column-defs is an ordinary updatable key, so class rules can first arrive
+  ;; at update; update-grid! ran no validation before ADR 0019.
+  (validate/reset-warnings!)
+  (let [h (handle {:column-defs [{:field :a}]})
+        w (capture #(grid/update-grid!
+                     h {:column-defs [{:field :a
+                                       :cell-class-rules {:via-update (constantly true)}}]}))]
+    (is (= 1 (count (filter #(re-find #"viaUpdate" %) w)))
+        "a keyword class-rule key arriving at update warns")))
 
 ;; --- builder catalog v1 (ADR 0009) ------------------------------------------
 

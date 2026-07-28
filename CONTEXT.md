@@ -20,6 +20,10 @@ _Avoid_: eager conversion, proxy rows
 One of the two supported pairings for turning CLJS data into renderable rows — camel-keyed rows with keyword `:field`s, or literal kebab-keyed rows with string `:field`s. A recipe is the pairing, not the conversion call; half a recipe renders blank cells.
 _Avoid_: row conversion, clj->js recipe
 
+**Consumer-keyed option**:
+An option whose nested map keys are names the consumer coins and cites elsewhere by exact spelling — CSS class names, agg-func names — rather than AG Grid vocabulary. Under the conversion boundary's one law those keys are strings, not keywords.
+_Avoid_: literal-keyed prop, name table
+
 **Options map**:
 The plain EDN map at the bottom of the API — kebab-case keys, the full AG Grid options surface reachable by ordinary `assoc`.
 _Avoid_: config, grid spec

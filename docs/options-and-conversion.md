@@ -75,6 +75,44 @@ Use the keyword form for AG Grid vocabulary; use the string form when the value
 is your own data (a snake_case field name, a literal string AG Grid should not
 touch).
 
+### The same law in key position
+
+A few options are maps whose keys are names *you* coin and then cite somewhere
+the converter cannot see. Those keys are your vocabulary, so they are **strings**:
+
+```clojure
+;; CSS class names — cited by your stylesheet
+{:row-class-rules {"row-warning" #(< (:qty (:data %)) 10)}}
+
+;; an agg-func name — cited by a ColDef, so the same string goes on both sides
+{:agg-funcs   {"my-total" (fn [p] (reduce + (.-values p)))}
+ :column-defs [{:field :qty :agg-func "my-total"}]}
+```
+
+| Option | Keys are | Cited from |
+| --- | --- | --- |
+| `:row-class-rules`, `:cell-class-rules` | CSS class names | your stylesheet |
+| `:agg-funcs` | agg-func names | ColDef `:agg-func` |
+| `:column-types` | column type names | ColDef `:type` |
+| `:data-type-definitions` | cell-data-type names | ColDef `:cell-data-type` |
+| `:components` | component names | `:cell-renderer`, `:cell-editor`, `:filter` |
+
+Write a keyword instead and it camelizes like any other key: `{:row-warning f}`
+emits the class `"rowWarning"`, which matches no `.row-warning` rule — no error,
+no styling, nothing in the console.
+
+Keywords on **both** sides of a citation do work: `{:agg-funcs {:my-total f}}`
+with `:agg-func :my-total` camelizes to `"myTotal"` twice and matches. But it
+leaves you one edit away from a silent break, since changing either side alone
+breaks the citation. Strings on both sides is the spelling that cannot rot.
+
+Not every map with your own keys needs strings. `:cell-renderer-params` keys are
+yours too and keywords are fine there, because the name never leaves the
+wrapper — it comes back through the [literal-key
+fallback](#callbacks-what-your-functions-receive-and-return) when your renderer
+reads it. The rule is about names that escape into something matching them
+literally.
+
 ## Row data is JS by contract
 
 Row data is the one place the library asks you to hand it JavaScript directly: a
@@ -212,6 +250,13 @@ open-surface guarantee holds. You get:
 - **Context nudge** — `:context` received a CLJS collection. Unlike rows it
   *does* convert, just lossily (keys camelize, keyword values become strings),
   so the nudge points at `raw` rather than at a recipe.
+- **Class-rule key nudge** — a `:row-class-rules` / `:cell-class-rules` key
+  written as a keyword whose name contains a `-`, or carrying a namespace; it
+  emits a camelized CSS class no stylesheet rule matches. Runs at creation and on
+  update. The other consumer-keyed options above are *not* checked: their names
+  are cited from inside the options map, where a keyword key is correct and a
+  mismatch is a different diagnostic — so silence there is not a clean bill of
+  health.
 - **XSS nudge** — a renderer function returned an HTML-looking string (AG Grid
   injects it via `innerHTML`); see [Cell rendering](cell-rendering.md).
 - **Set / namespaced-keyword warnings** — as described above.
@@ -222,13 +267,15 @@ open-surface guarantee holds. You get:
   row data does not have, so the column renders blank. Warns once per field
   with a did-you-mean, at creation and whenever columns or rows change.
 
-The field check needs no opt-in — it is on in every dev build. The gate exists
+The field check and the class-rule key nudge need no opt-in — both are on in
+every dev build, because neither consults the key registry. The gate exists
 because typo detection tests your keys against a registry pinned to one AG Grid
 version, and a consumer on a newer AG Grid would get false "unknown option"
 warnings from that drift; the field check compares your columns against your own
 rows, so it has nothing to drift against.
 
-It reports the **camel string AG Grid is looking up**, not your kebab source:
+The field check reports the **camel string AG Grid is looking up**, not your
+kebab source:
 
 ```
 [ag-grid-cljs] column field "fristName" is not a key in the row data — did you mean "firstName"?
