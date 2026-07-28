@@ -57,10 +57,45 @@ The check also cannot live in `impl.convert`: it needs the `levenshtein`/`sugges
 - **Walking the row's dotted path and reporting the first missing hop** — rejected: false-positives on legitimately sparse nested data.
 - **Listing the row's actual keys when no close match is found** — rejected for v1: the single most useful thing to print, but unbounded; revisit with a cap if the bare message proves too thin.
 
+## Appendix: redundancy audit against AG Grid 36.0.2 (2026-07-28)
+
+This ADR's criterion — registry-free checks need no gate — answers *whether a check opts in*. It does not answer *whether the check should exist*, and the recurring failure mode has been a wrapper check reimplementing, more narrowly, something AG Grid already warns about. Two builder-rule proposals died that way. The nine checks the wrapper ran at the time of the audit were therefore swept against the AG Grid 36.0.2 bundle (`node_modules/ag-grid-community/dist/package/main.cjs.js`, version at line 911). Line numbers below are that file.
+
+The load-bearing distinction: `_warn(n)` reaches the console with **no** ValidationModule registered, via the `minifiedLog` fallback in `getErrorParts` (925), printing `warning #n …/errors/n?<args>` with the offending values as URL params. Anything behind `beans.validation?.` does **not** — `ValidationService` is the sole bean of `ValidationModule` (57683), and `ValidationModule` is not a member of `AllCommunityModule` (module list, 56299-56347), so it must be registered by hand.
+
+### Not redundant — no upstream coverage
+
+- **Field check** (this ADR). No analogue in the bundle. The nearest texts are error 17, "you need either field or valueSetter set on colDef for editing to work" (56785), and 234, on group filters ignoring `field` (57104) — neither concerns whether the field exists on the row.
+- **Class-rule keys** (ADR 0019). Keys are consumer-coined CSS names; `cellCtrl` reads the map without inspecting keys (56150-56195). Unknowable upstream by construction — the same property that makes it registry-free makes it uncoverable.
+- **JS-by-contract nudge** (`impl.convert`). AG Grid does have `_warn(1)`, "`rowData` must be an array" (text 56757, ungated call site 14593), but it never fires for us: a CLJS vector converts to a JS array, so the type is right and only the *semantics* are lost — keys camelized, keyword values stringified. That loss is invisible upstream.
+- **Renderer innerHTML/XSS nudge.** No XSS, sanitization, or `innerHTML` warning exists anywhere in the bundle. Injecting a bare fn renderer's string return is documented behavior (ADR 0011).
+- **Lossy conversion warnings** (namespace dropped, non-keyword key stringified, set unconverted). Pre-boundary by definition — AG Grid only ever sees the result. One partial overlap: a CLJS **set** for `:row-data` passes through unconverted, so AG Grid would also `_warn(1)`, ungated; ours fires earlier and names the cause.
+- **`:row-data` refused by `update-grid!`** (ADR 0004). Wrapper policy. AG Grid would apply `rowData` via `setGridOption` without complaint.
+
+### Largely redundant — kept for kebab
+
+- **Unknown key** (ADR 0007 §4-5). `ValidationService.processOptions` (57553-57604) warns `invalid {objectName} property '{name}' did you mean any of these: …` via `_fuzzySuggestions`, plus a docs-URL follow-up, for `objectName` ∈ {`gridOptions`, `colDef`}. Its opt-out `suppressPropertyNamesCheck` is itself deprecated as of v33 (26453), so it is effectively unconditional once ValidationModule is registered. Both checks are gated, so they are reached under the same conditions.
+
+  Two deltas survive, and they are the whole justification: ours names **kebab** (`:column-defs`) where AG Grid names camel (`columnDefs`); and ours is **position-aware** (`col-spec` vs `col-group-spec`) where `colDefPropertyMap` (25828) is one flat merged set carrying both leaf and group keys (`groupId`, `openByDefault`, `marryChildren`, `columnGroupShow` all present), so AG Grid accepts a group-only key on a leaf column and the reverse.
+
+### Redundant — tracked for removal
+
+- **Deprecation warnings** (ADR 0007 §5). Redundant *and strictly narrower*. `processOptions` (57570) emits `As of v{version}, {name} is deprecated. {message}` from `GRID_OPTION_DEPRECATIONS` (26389) and `COLUMN_DEFINITION_DEPRECATIONS` (25490): **106 keys against our registry's 32**, same replacement text from the same upstream source. Diffing camel names, the only key ours flags that AG Grid's runtime tables miss is `reactiveCustomComponents` — a framework-adapter option with no meaning for a vanilla-core wrapper (ADR 0012). The gap is explained by origin: our registry records `@deprecated` tsdoc tags found during codegen, AG Grid's tables are hand-maintained and wider.
+- **Initial-only warning** in `update-grid!` (ADR 0008). The *message* duplicates `ValidationService.warnOnInitialPropertyUpdate` (57488) → `_warn(22)`, "`{key}` is an initial property and cannot be updated" (56791), which fires when `source === "api"` — exactly our `setGridOption` path (`updateGridOptions` defaults `source` to `"api"`, 27149). The *skip* does not duplicate anything and stays: AG Grid warns and then still writes `gridOptions[key] = value` (27159) and dispatches the property event, leaving state carrying a value no component reads, whereas we never make the call. The sibling `:unclassified` branch has no upstream analogue — it is about our registry alone.
+
+  Removing the message is not unconditional, because the gate is asymmetric: ours is always-on, AG Grid's needs ValidationModule. Dropping it without promoting "register ValidationModule" from advice to a documented dev prerequisite would leave an ignored update silent on both sides.
+
+### The criterion this adds
+
+Registry-free earns *always-on*; it does not earn *existing*. A new wrapper check must also clear an upstream-coverage bar: read the AG Grid source for the case, and if `_warn`/`_error` already fires there, establish what the wrapper adds — earlier, ungated, kebab-native, or behaviorally different — before writing it. "AG Grid is silent here" is a claim to verify in the bundle, not to assume.
+
 ## References
 
 - ADR 0004 — update model (the data channel owns rows, which is why the EDN cannot supply them post-creation)
 - ADR 0005 — conversion boundary (why the check sees camel strings)
 - ADR 0007 §1, §4-5 — key registry: dead-code elimination, and the opt-in validations this sits beside
 - ADR 0008 — options diffing (`update-grid!` returns a new handle, which is why a listener cannot hold the stash)
+- ADR 0011 — cell renderer tiers (the bare fn's documented innerHTML semantics)
+- ADR 0012 — no framework adapters in v1 (why `reactiveCustomComponents` is not worth a check)
 - ADR 0015 — testing split (node vs browser)
+- ADR 0019 — consumer-keyed options (the class-rule key check, the other registry-free always-on check)
