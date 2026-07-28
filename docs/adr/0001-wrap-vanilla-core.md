@@ -30,7 +30,7 @@ ag-grid-cljs wraps the vanilla `ag-grid-community` core (`createGrid`) directly 
 
 Module/Enterprise posture:
 
-- The consumer owns module registration. The wrapper core depends only on `ag-grid-community` and exposes a thin optional `register!` (a trivial wrapper over `ModuleRegistry.registerModules` accepting the consumer's imported module objects), plus per-grid `:modules` passthrough in grid params.
+- The consumer owns module registration. The wrapper core depends only on `ag-grid-community` and exposes a thin optional `register!` (a trivial wrapper over `ModuleRegistry.registerModules` accepting the consumer's imported module objects), plus per-grid `:modules` passthrough in grid params. (Later carve-out: `create-grid!` registers the log-only `ValidationModule` itself in `goog.DEBUG` builds — see ADR 0020. Capability modules remain the consumer's.)
 - An opt-in `ag-grid-cljs.enterprise` namespace provides `set-license-key!` (wrapping `LicenseManager.setLicenseKey`), documented as "call before creating any grid". The core never imports `ag-grid-enterprise`, so Community-only consumers pay nothing.
 - In development, the license key is injected at compile time via a macro reading the `AG_GRID_LICENSE` environment variable; the key is never committed (it lands only in gitignored build output; with the env var unset, e.g. on CI, the macro expands to `""`).
 - AG Grid npm packages are peer dependencies, never bundled by the wrapper. Selective modules save ~20–40% bundle only with an external ESM-aware bundler.

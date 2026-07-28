@@ -27,7 +27,9 @@ It has zero runtime dependencies beyond the AG Grid peer packages.
 
 AG Grid v33+ is modular: nothing renders until modules are registered, and the
 consumer owns that step. [[ag-grid-cljs.core/register!]] is thin sugar over AG
-Grid's `ModuleRegistry` — call it once, before the first grid is created.
+Grid's `ModuleRegistry` — call it once, before the first grid is created. (The
+one module the wrapper registers for you is AG Grid's log-only
+`ValidationModule`, in dev builds — see "Dev-mode warnings" below.)
 
 ```clojure
 (ns my.app
@@ -98,13 +100,16 @@ touch, you wrap with [[ag-grid-cljs.core/raw]] (see the next article).
 
 ## Dev-mode warnings
 
-In development, opt into the wrapper's typo and deprecation warnings with
+In development, opt into the wrapper's typo warnings with
 [[ag-grid-cljs.core/enable-dev-validations!]] (call once at startup). Unknown
 keys get a kebab did-you-mean; it is warn-only and compiled out of production
-builds entirely. For type and option-dependency checks, register AG Grid's own
-`ValidationModule` alongside it.
+builds entirely.
 
-The **field check** needs no such call — it is on in every dev build. When a
+AG Grid's own checks — deprecations, types, option dependencies, row models —
+need no call from you: `create-grid!` registers `ValidationModule` for you in dev
+builds, and registers nothing in production.
+
+The **field check** needs no call either — it is on in every dev build. When a
 column's `:field` or `:tooltip-field` names a key your row data does not have
 (the blank-column bug, which AG Grid itself reports nowhere), it warns once with
 a did-you-mean. See

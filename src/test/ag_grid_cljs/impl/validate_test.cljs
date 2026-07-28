@@ -105,19 +105,16 @@
   (testing "a raw-wrapped column-defs subtree is opaque"
     (is (empty? (warns-for {:column-defs (c/raw [{:whatever-typo 1}])})))))
 
-;; --- deprecation ------------------------------------------------------------
+;; --- deprecation is AG Grid's, not ours -------------------------------------
 
-(deftest deprecation-carries-replacement
+(deftest deprecated-keys-are-silent
+  ;; Deprecation warnings come from the ValidationModule create-grid! registers
+  ;; in dev builds — 106 keys against the registry's 32, same replacement text
+  ;; (ADR 0020). Both keys below carry :deprecated in the registry.
   (testing "grid option"
-    (let [w (warns-for {:enable-range-selection true})]
-      (is (= 1 (count w)))
-      (is (re-find #":enable-range-selection is deprecated" (first w)))
-      (is (re-find #"cellSelection" (first w)) "replacement note included")))
+    (is (empty? (warns-for {:enable-range-selection true}))))
   (testing "col-def option"
-    (let [w (warns-for {:column-defs [{:checkbox-selection true}]})]
-      (is (= 1 (count w)))
-      (is (re-find #":checkbox-selection is deprecated" (first w)))
-      (is (re-find #"selection API" (first w))))))
+    (is (empty? (warns-for {:column-defs [{:checkbox-selection true}]})))))
 
 ;; --- dedup ------------------------------------------------------------------
 

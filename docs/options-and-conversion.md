@@ -239,9 +239,9 @@ keyword** converts by its name only, warning that the namespace was dropped.
 
 ## Dev-mode warnings
 
-All of the above nudges — plus unknown-key typo detection, deprecation notices,
-and the field check — are **dev-only** and compiled out of production builds
-entirely (`goog.DEBUG` false dead-code-eliminates the validation code and the
+All of the above nudges — plus unknown-key typo detection and the field check —
+are **dev-only** and compiled out of production builds entirely
+(`goog.DEBUG` false dead-code-eliminates the validation code and the
 key registry). They never reject or alter what AG Grid receives; the
 open-surface guarantee holds. You get:
 
@@ -260,9 +260,9 @@ open-surface guarantee holds. You get:
 - **XSS nudge** — a renderer function returned an HTML-looking string (AG Grid
   injects it via `innerHTML`); see [Cell rendering](cell-rendering.md).
 - **Set / namespaced-keyword warnings** — as described above.
-- **Typo and deprecation warnings** — opt in with
+- **Typo warnings** — opt in with
   [[ag-grid-cljs.core/enable-dev-validations!]]; unknown keys get a kebab
-  did-you-mean, deprecated keys point at their replacement.
+  did-you-mean.
 - **Field check** — a column's `:field` (or `:tooltip-field`) names a key your
   row data does not have, so the column renders blank. Warns once per field
   with a did-you-mean, at creation and whenever columns or rows change.
@@ -286,6 +286,10 @@ supersedes the field) but never the `:tooltip-field` half, which AG Grid reads
 straight off the row regardless. A dotted field is checked one segment deep, so
 legitimately sparse nested data stays quiet.
 
-For type, option-dependency, and row-model checks beyond the kebab layer,
-register AG Grid's own `ValidationModule` in your dev bundle alongside
-`enable-dev-validations!`.
+Beyond the kebab layer, AG Grid has its own checks — deprecated options with
+their replacement, types, option dependencies, row-model support — and they need
+no call from you: `create-grid!` registers AG Grid's `ValidationModule` itself in
+`goog.DEBUG` builds, and nothing in production. Those warnings name camel
+(`enableRangeSelection`), so an unknown key can warn twice — once in your kebab
+spelling, once in AG Grid's. Deprecations are AG Grid's exclusively: the wrapper
+used to duplicate them over a narrower set of keys and no longer does.

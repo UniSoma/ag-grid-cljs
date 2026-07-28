@@ -5,9 +5,9 @@
   DEV VALIDATIONS — position-aware validation of the EDN options map, run at the
   conversion boundary (ADR 0007 §4-5). It does the strictly-kebab-native layer
   AG Grid's own ValidationModule cannot: unknown-key warnings with a kebab
-  did-you-mean, plus kebab-native deprecation warnings carrying the replacement.
-  It NEVER reimplements type/dependency/row-model checks (delegated to
-  ValidationModule). Position-aware: top-level keys validate against
+  did-you-mean. It NEVER reimplements type/dependency/row-model or deprecation
+  checks — those are ValidationModule's, which create-grid! registers in every
+  dev build (ADR 0020). Position-aware: top-level keys validate against
   :grid-options (+ event handlers); the known ColDef-bearing positions
   (:column-defs items, :default-col-def, :auto-group-column-def, and group
   :children) validate against :col-def / :col-group-def; everything else is
@@ -100,20 +100,15 @@
   (some-> (closest input (map name kebabs)) keyword))
 
 ;; --- per-position known-key indexes (dev-only literals; DCE in prod) ---------
-;; Each position is a spec {:camels <set> :deprs <camel->note> :kebabs <keys>}:
-;; :camels is the membership test (camel-normalized so kebab and already-camel
-;; input match identically), :deprs the deprecation notes, :kebabs the
-;; did-you-mean candidate pool.
+;; Each position is a spec {:camels <set> :kebabs <keys>}: :camels is the
+;; membership test (camel-normalized so kebab and already-camel input match
+;; identically), :kebabs the did-you-mean candidate pool.
 
 (defn- block-camels [block]
   (into #{} (map (comp :camel val)) block))
 
-(defn- block-deprecations [block]
-  (into {} (keep (fn [[_ e]] (when (:deprecated e) [(:camel e) (:deprecated e)]))) block))
-
 (defn- block-spec [block]
   {:camels (block-camels block)
-   :deprs  (block-deprecations block)
    :kebabs (vec (keys block))})
 
 (def ^:private grid-spec
@@ -126,7 +121,6 @@
           handler-camels (map (comp :handler val) ev)
           handler-kebabs (map (comp keyword convert/camel->kebab :handler val) ev)]
       {:camels (into (block-camels go) handler-camels)
-       :deprs  (block-deprecations go)
        :kebabs (into (vec (keys go)) handler-kebabs)})))
 
 (def ^:private col-spec
@@ -138,16 +132,13 @@
 ;; --- key checks -------------------------------------------------------------
 
 (defn- check-key!
-  "Warn on one unknown or deprecated key. `object-name` labels the position
-  (and scopes dedup). String keys and namespaced keywords are user-literal and
-  skipped (conversion rule: string = verbatim)."
-  [object-name {:keys [camels deprs kebabs]} k]
+  "Warn on one unknown key. `object-name` labels the position (and scopes
+  dedup). String keys and namespaced keywords are user-literal and skipped
+  (conversion rule: string = verbatim)."
+  [object-name {:keys [camels kebabs]} k]
   (when (and (keyword? k) (nil? (namespace k)))
     (let [prop (convert/kebab->camel (name k))]
-      (if (contains? camels prop)
-        (when-let [dep (get deprs prop)]
-          (warn-once! object-name k
-                      (str object-name " option " k " is deprecated: " dep)))
+      (when-not (contains? camels prop)
         (let [sug (suggest (name k) kebabs)]
           (warn-once! object-name k
                       (str "unknown " object-name " option " k

@@ -41,7 +41,7 @@ A grid option AG Grid accepts only at creation; the differ warns once and ignore
 _Avoid_: immutable option
 
 **Dev validations**:
-The opt-in, registry-backed warnings over the EDN options map — unknown keys with a kebab did-you-mean, deprecations carrying their replacement. Heuristic against a registry pinned to one AG Grid version, so `enable-dev-validations!` gates them.
+The opt-in, registry-backed warnings over the EDN options map — unknown keys with a kebab did-you-mean. Heuristic against a registry pinned to one AG Grid version, so `enable-dev-validations!` gates them. Deprecation, type, option-dependency and row-model warnings are not these: they come from AG Grid's own `ValidationModule`, which `create-grid!` registers in dev builds (ADR 0020).
 _Avoid_: linting, schema check
 
 **Field check**:

@@ -4,7 +4,7 @@
   (:require [ag-grid-cljs.impl.convert :as convert]
             [ag-grid-cljs.impl.validate :as validate]
             [ag-grid-cljs.impl.registry :as reg]
-            ["ag-grid-community" :refer [createGrid ModuleRegistry]]))
+            ["ag-grid-community" :refer [createGrid ModuleRegistry ValidationModule]]))
 
 (def raw
   "Escape hatch: (raw x) passes x to AG Grid untouched — no key renaming,
@@ -16,6 +16,24 @@
   owns module registration; must run before the first grid is created."
   [& modules]
   (.registerModules ModuleRegistry (into-array modules)))
+
+(defonce ^:private validation-module-registered?
+  ;; Registered from create-grid! rather than on namespace load so the "before
+  ;; the first grid" ordering constraint cannot be violated (ADR 0020).
+  (atom false))
+
+(defn- register-validation-module!
+  "Register AG Grid's ValidationModule once, in dev builds only (ADR 0020). It
+  is a diagnostics module — ValidationService only logs, it never throws and
+  never changes what the grid does — so registering it on the consumer's behalf
+  cannot alter behavior. Unlike our own registry-backed checks it ships inside
+  the consumer's own AG Grid, so it cannot drift against it — which is why it is
+  always on rather than behind enable-dev-validations!. Capability modules remain
+  the consumer's call (ADR 0001)."
+  []
+  (when ^boolean goog.DEBUG
+    (when (compare-and-set! validation-module-registered? false true)
+      (.registerModules ModuleRegistry #js [ValidationModule]))))
 
 ;; --- builders (first cut) ---------------------------------------------------
 ;; Builders are plain-map sugar: the bottom layer is always an EDN options
@@ -236,6 +254,11 @@
   wrapper does not cover. (The handle also carries an internal per-handle set of
   keys already dev-warned by `update-grid!` — not part of the public shape.)
 
+  In `goog.DEBUG` builds this also registers AG Grid's own `ValidationModule`
+  once, before the first grid — so type, option-dependency, row-model and
+  deprecation warnings are on by default in dev with nothing to call (ADR 0020).
+  Production builds register nothing.
+
   Example:
 
       (create-grid! el (-> (options)
@@ -248,6 +271,9 @@
   (when ^boolean goog.DEBUG (validate/validate-options! opts))
   ;; Always on, no enable-dev-validations! — registry-free (ADR 0019).
   (when ^boolean goog.DEBUG (validate/check-class-rules! opts))
+  ;; Before createGrid, because modules must be registered before the first grid
+  ;; (ADR 0020).
+  (when ^boolean goog.DEBUG (register-validation-module!))
   (let [api (createGrid el (convert/->js opts))]
     ;; The field check is always on in dev — no enable-dev-validations! (ADR
     ;; 0017). It can only be installed here: addEventListener is unreachable
@@ -257,20 +283,18 @@
 
 (defn enable-dev-validations!
   "Turn on the wrapper's dev-mode option validation: unknown top-level and
-  ColDef keys warn once with a kebab did-you-mean, and deprecated keys warn with
-  their replacement (ADR 0007 §4-5). Warn-only — validation never rejects or
-  alters what AG Grid receives. No-op in production builds (goog.DEBUG false),
-  where both the validation code and the key registry are dead-code-eliminated.
+  ColDef keys warn once with a kebab did-you-mean (ADR 0007 §4-5). Warn-only —
+  validation never rejects or alters what AG Grid receives. No-op in production
+  builds (goog.DEBUG false), where both the validation code and the key registry
+  are dead-code-eliminated.
 
   Call once at app startup in dev. This gate covers only these registry-backed
-  option warnings — the field check (a column `:field` naming a key the row data
-  does not have) is always on in dev builds and needs no call (ADR 0017). For
-  type, option-dependency, and row-model checks register AG Grid's own
-  ValidationModule (dev bundle) alongside it:
-
-      (:require [\"ag-grid-community\" :refer [ValidationModule]])
-      (ag/register! ValidationModule)
-      (ag/enable-dev-validations!)"
+  unknown-key warnings, because they test your keys against a registry pinned to
+  one AG Grid version and so drift against a newer one. Nothing else needs a
+  call: the field check (a column `:field` naming a key the row data does not
+  have) is always on (ADR 0017), and `create-grid!` registers AG Grid's own
+  ValidationModule in dev builds, which covers type, option-dependency,
+  row-model and deprecation warnings (ADR 0020)."
   []
   (when ^boolean goog.DEBUG (validate/enable!)))
 

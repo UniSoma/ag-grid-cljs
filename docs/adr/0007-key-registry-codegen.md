@@ -46,6 +46,8 @@ Dev-only validation runs in the conversion walk (ADR 0005), on kebab keys, befor
 
 ### 5. Division of labor vs AG Grid's ValidationModule: middle
 
+> **Superseded in part by ADR 0020 (2026-07-28).** The deprecation half is gone: `create-grid!` now registers ValidationModule itself in `goog.DEBUG` builds, so AG Grid's own deprecation warnings are *not* off by default in our builds, and they cover 106 keys against this registry's 32. `:deprecated` is still extracted (§3's full-rich shape), just no longer read at runtime. The unknown-key + kebab did-you-mean layer, and the `enable-dev-validations!` gate over it, are unchanged.
+
 The wrapper validator does **unknown-key + kebab did-you-mean** (the strictly-unique layer AG Grid cannot provide) **and kebab-native deprecation warnings** (a cheap `(get deprecated k)` lookup with replacement note; AG Grid's own deprecation warnings are off by default on v36+). The wrapper does NOT reimplement type-checking, option-dependency, or row-model rules — those are delegated to AG Grid's ValidationModule. Warnings go to `js/console.warn`, deduped once per `[object-name key]` via a dev-only warned-set atom. Expose a tiny `enable-dev-validations!` helper and document registering ValidationModule in dev for the deeper checks.
 
 ### 6. Docs reference table: committed Markdown from the codegen tool
@@ -56,7 +58,7 @@ The same Node codegen pass emits a committed `docs/reference/ag-grid-options.md`
 
 - Production builds carry zero registry weight; the DCE claim must be verified on the walking skeleton with a bundle-size check before it can be trusted.
 - The registry can lag AG Grid releases safely: the failure mode is a spurious dev warning on a genuinely new key, never rejection or false acceptance.
-- Consumers who want type/dependency/row-model validation must opt in to AG Grid's ValidationModule in dev; the wrapper only tells them so, it does not wrap those checks.
+- Consumers who want type/dependency/row-model validation must opt in to AG Grid's ValidationModule in dev; the wrapper only tells them so, it does not wrap those checks. (ADR 0020 removed the opting-in: `create-grid!` registers it for them in `goog.DEBUG` builds. The wrapper still does not *wrap* those checks, which is the part of this bullet that stands.)
 
 ## Considered options
 

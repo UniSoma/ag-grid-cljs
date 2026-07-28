@@ -10,7 +10,7 @@ A consumer builds a plain EDN **options map** — optionally through pure `with-
 
 `create-grid!` returns a **GridHandle**. Post-creation change flows through three explicit channels ([ADR 0004](adr/0004-update-model.md)): `update-grid!`, a PATCH/MERGE options differ classified by the registry's `:initial?` flag ([ADR 0008](adr/0008-options-diffing-semantics.md)); the transactional **data channel** `set-rows!` / `transact!` for row data, which is **JS-by-contract** and never diffed ([ADR 0003](adr/0003-row-data-js-by-contract.md)); and the raw GridApi via `grid-api` as escape hatch.
 
-Dev-mode help comes from the generated **key registry** ([ADR 0007](adr/0007-key-registry-codegen.md)) — a goog.DEBUG-guarded literal emitted by a Node/ts-morph codegen tool under `tools/`, powering unknown-key/did-you-mean/deprecation warnings and the generated options reference.
+Dev-mode help comes from the generated **key registry** ([ADR 0007](adr/0007-key-registry-codegen.md)) — a goog.DEBUG-guarded literal emitted by a Node/ts-morph codegen tool under `tools/`, powering unknown-key/did-you-mean warnings and the generated options reference. Deprecation, type, option-dependency and row-model warnings are AG Grid's own: `create-grid!` registers its `ValidationModule` in dev builds ([ADR 0020](adr/0020-validation-module-in-dev-builds.md)).
 
 Public namespaces ([ADR 0006](adr/0006-namespace-and-naming.md)): a fat `ag-grid-cljs.core`, satellites `render` and `react` for the three **renderer tiers** ([ADR 0011](adr/0011-cell-renderer-tiers.md)), and opt-in `enterprise` with `set-license-key!`; the consumer owns module registration via a thin `register!` ([ADR 0001](adr/0001-wrap-vanilla-core.md)). Internals live under `ag-grid-cljs.impl.*`.
 
