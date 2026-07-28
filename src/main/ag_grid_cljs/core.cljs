@@ -419,6 +419,16 @@
                              "by update-grid!; use set-rows! or transact! (ADR 0004)"))
             (case (classify k)
               :updatable    (apply-opt! api k new-val)
+              ;; This message is NOT redundant with AG Grid's own "{key} is an
+              ;; initial property and cannot be updated" (_warn(22)). That one is
+              ;; emitted from ValidationService.warnOnInitialPropertyUpdate, whose
+              ;; sole caller is GridOptionsService.updateGridOptions — the body of
+              ;; setGridOption. Skipping setGridOption IS this branch, so upstream
+              ;; never sees the key and never warns; deleting our message would
+              ;; leave the ignored update silent from both sides. Registering
+              ;; ValidationModule (ADR 0020) does not change that — reachability,
+              ;; not gating, is the reason (ADR 0017 appendix; browser suite
+              ;; ag-grid-cljs.browser.initial-only-test pins the upstream half).
               :initial-only (warn-once! warned k
                                         (str "grid option " k " is initial-only and cannot change "
                                              "after creation; update-grid! ignored it"))
