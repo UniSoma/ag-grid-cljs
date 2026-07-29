@@ -80,7 +80,7 @@ It needs no api listeners. Unlike rows, which leave the options map (ADR 0004) a
 
 Per-option builders for these fail ADR 0009's admission bar — they would merely name an option. ADR 0009 already rejects `with-data-type-definitions` on exactly that ground.
 
-But its stated reason, *"plain passthrough the conversion contract already handles"*, is true and misleading: the contract does handle it, by camelizing the keys. And a builder that **hyphenated keyword keys would coerce**, which clears the bar that pure passthrough failed. ADR 0009 is left as written — it is a dated record of a decision that still stands — and the coercion question is recorded on the open builder-catalog-v2 ticket (agd-01kyqf7t09w5), which is where it gets decided and where any amendment to 0009 should originate.
+But its stated reason, *"plain passthrough the conversion contract already handles"*, is true and misleading: the contract does handle it, by camelizing the keys. And a builder that **hyphenated keyword keys would coerce**, which clears the bar that pure passthrough failed. ADR 0009 is left as written — it is a dated record of a decision that still stands — and the coercion question stays open, recorded here rather than in the catalog ADR. A builder-catalog v2 is where it gets decided.
 
 ### 8. Docs carry the rule for all six
 
