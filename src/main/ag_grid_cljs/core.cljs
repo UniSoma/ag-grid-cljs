@@ -285,10 +285,12 @@
   ;; (ADR 0020).
   (when ^boolean goog.DEBUG (register-validation-module!))
   (let [api (createGrid el (convert/->js opts))]
-    ;; The field check is always on in dev — no enable-dev-validations! (ADR
-    ;; 0017). It can only be installed here: addEventListener is unreachable
-    ;; until createGrid returns, so install-field-check! also runs once itself.
-    (when ^boolean goog.DEBUG (validate/install-field-check! api))
+    ;; Both live-grid checks are always on in dev — no enable-dev-validations!
+    ;; (ADR 0017, ADR 0019 §9). They can only be installed here: addEventListener
+    ;; is unreachable until createGrid returns, so each also runs once itself.
+    (when ^boolean goog.DEBUG
+      (validate/install-field-check! api)
+      (validate/install-ref-data-check! api))
     (->GridHandle api opts)))
 
 (defn enable-dev-validations!

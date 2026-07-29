@@ -21,7 +21,7 @@ One of the two supported pairings for turning CLJS data into renderable rows —
 _Avoid_: row conversion, clj->js recipe
 
 **Consumer-keyed option**:
-An option whose nested map keys are names the consumer coins and cites elsewhere by exact spelling — CSS class names, agg-func names — rather than AG Grid vocabulary. Under the conversion boundary's one law those keys are strings, not keywords.
+An option whose nested map keys are names the consumer coins and cites elsewhere by exact spelling — CSS class names, agg-func names, row-data values (`:ref-data`) — rather than AG Grid vocabulary. Under the conversion boundary's one law those keys are strings, not keywords. Which string depends on the citation site: for the six cited from a stylesheet or from inside the options map it is the kebab name as written; for `:ref-data`, whose citation site is the rows, it is whatever spelling the row recipe carries.
 _Avoid_: literal-keyed prop, name table
 
 **Options map**:
@@ -47,6 +47,10 @@ _Avoid_: linting, schema check
 **Field check**:
 The always-on dev diagnostic comparing each column's emitted field string against the keys of a sampled row, warning once per field with a did-you-mean. Registry-free — it compares two consumer-supplied things — so it needs no opt-in.
 _Avoid_: field validation, column validation
+
+**Ref-data check**:
+The always-on dev diagnostic comparing a `:ref-data` column's sampled row value against that column's own emitted `refData` keys, warning only on a near-match — since `:ref-data` is sparse by intent, an unmatched value with no close key is unmapped rather than misspelled. The near-match rule is also what keeps it silent under both row recipes. Shares the field check's plumbing (same events, same row sample) with its own per-grid state.
+_Avoid_: ref-data validation, label check
 
 **Warning period**:
 How often a given dev warning repeats. A warning about what the consumer *wrote* — an unknown key, a keyword where a string was meant, two conflicting builder options — is true for the life of the process, so it fires once. A warning about a *relationship between live things* — this column's field against this grid's rows — can be true for one grid and false for the next, so it fires once per grid (ADR 0022).

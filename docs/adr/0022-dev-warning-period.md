@@ -27,7 +27,9 @@ The key space was also unowned. ADR 0019 §5 deduped the class-rules check by pa
 
 **A warning about what the consumer wrote fires once per process.** Unknown keys, a namespaced keyword, a non-keyword map key, a CLJS collection in a data-carrying prop, a CLJS set, a class-rule key conversion would rename, both pagination keys at once, an initial-only or unregistered key in an `update-grid!` patch. The authored text does not change within a process, so a second firing is noise.
 
-**A warning about a relationship between live things fires once per grid.** The field check, and only the field check today: "this column's field is not a key in this grid's rows" can be true here and false next door.
+**A warning about a relationship between live things fires once per grid.** The field check: "this column's field is not a key in this grid's rows" can be true here and false next door.
+
+> **Amended 2026-07-29 (agd-01kyqmb9ssq7).** "and only the field check today" is struck — the **ref-data check** (ADR 0019 §9) is a second member, and it was classified by this rule rather than by precedent: "this column's `:ref-data` keys do not match this grid's row values" is the same species of statement. It shares the field check's plumbing and keeps its own per-grid atom, and its state key is the col id rather than the field, because its question is about a column's own map. The rule, not the roster, is what §1 is for.
 
 This derives ADR 0017 §9 rather than contradicting it. §9's three reasons for rejecting a module-global set for the field check — the "present in this grid's rows" half is inherently per-grid, a global set silences a real bug on a second grid with differently-shaped rows, and `defonce` survives hot reload — all reduce to "this warning's truth is grid-scoped." Where truth is not grid-scoped, the reasons do not apply.
 

@@ -4,11 +4,12 @@
   -test$ pattern, so this one is invisible to it (ag-grid-cljs.browser.util is
   the precedent on the browser side).
 
-  Holds the one warning-capture helper. Collapsing the copies of the same
-  try/finally is the smaller half of why it is shared; the load-bearing half is
-  the reset-warnings! on entry — dedup is process-wide (ADR 0022) and cljs.test
-  runs the whole node suite in one process, so a warning-count assertion is
-  otherwise order-dependent on whatever ran first.
+  Holds the warning-capture helper and the AG Grid fakes the two live-grid checks
+  share. For `capture`, collapsing the copies of the same try/finally is the
+  smaller half of why it is shared; the load-bearing half is the reset-warnings!
+  on entry — dedup is process-wide (ADR 0022) and cljs.test runs the whole node
+  suite in one process, so a warning-count assertion is otherwise order-dependent
+  on whatever ran first.
 
   The browser suite deliberately keeps its own capture: initial-only-test and
   validation-module-test assert AG Grid's OWN console output, which no seam
@@ -26,3 +27,53 @@
     (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
     (try (f) (finally (set! js/console.warn orig)))
     @warnings))
+
+;; --- AG Grid fakes ----------------------------------------------------------
+;; Node owns our contract given AG Grid's answers, so the Column and GridApi the
+;; live-grid checks read are fakes here; the browser suite owns the assertions
+;; that are about AG Grid itself (ADR 0015).
+
+(defn fake-col
+  "A fake AG Grid Column: `col-def` is the merged ColDef (a JS object), and the
+  two dot-notation predicates answer what AG Grid resolved at column-build time.
+  The col id defaults to the ColDef's `:colId` or `:field`, as AG Grid's own
+  fallback does."
+  ([col-def] (fake-col col-def false false))
+  ([col-def field-dots? tooltip-dots?]
+   #js {:getColDef                  (fn [] col-def)
+        :getColId                   (fn [] (or (.-colId col-def)
+                                               (.-field col-def)))
+        :isFieldContainsDots        (fn [] field-dots?)
+        :isTooltipFieldContainsDots (fn [] tooltip-dots?)}))
+
+(defn fake-node
+  "A fake RowNode. `data` nil models a CSRM group node; :group true models a
+  group row (an SSRM group row carries only its grouping field)."
+  [data group?]
+  #js {:data data :group group?})
+
+(defn fake-api
+  "A fake GridApi, as `[api calls nodes]`. `:columns` nil models the
+  pre-colModel.ready window; `nodes` is a mutable atom of what forEachNode
+  yields, so a test can land a row after installing and then fire a listener.
+  `calls` records the registered listeners and the two call counts."
+  [{:keys [columns nodes]}]
+  (let [nodes (atom (vec nodes))
+        calls (atom {:listeners [] :get-columns 0 :for-each-node 0})
+        api #js {:getColumns
+                 (fn []
+                   (swap! calls update :get-columns inc)
+                   (when columns (into-array columns)))
+                 :forEachNode
+                 (fn [f]
+                   (swap! calls update :for-each-node inc)
+                   (doseq [n @nodes] (f n)))
+                 :addEventListener
+                 (fn [event f]
+                   (swap! calls update :listeners conj [event f]))}]
+    [api calls nodes]))
+
+(defn fire!
+  "Invoke the listener registered for `event` on a fake api's `calls` record."
+  [calls event]
+  ((some (fn [[e f]] (when (= e event) f)) (:listeners @calls)) nil))

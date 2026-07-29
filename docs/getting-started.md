@@ -115,10 +115,14 @@ the text does not change while the page lives. That set survives a hot reload, s
 if you want a just-reintroduced mistake to warn again, clear it from a
 `^:dev/after-load` hook with [[ag-grid-cljs.core/reset-dev-warnings!]].
 
-The **field check** needs no call either — it is on in every dev build. When a
-column's `:field` or `:tooltip-field` names a key your row data does not have
-(the blank-column bug, which AG Grid itself reports nowhere), it warns once with
-a did-you-mean. See
+Two checks need no call either — both are on in every dev build, because both
+compare your columns against your own rows rather than against a version-pinned
+registry. The **field check**: a column's `:field` or `:tooltip-field` names a key
+your row data does not have (the blank-column bug, which AG Grid itself reports
+nowhere), warned once with a did-you-mean. The **ref-data check**: a `:ref-data`
+key nearly matches the value your rows carry but does not match it, so the cell
+renders blank (`{:in-progress "In Progress"}` emits `inProgress`, and a row
+holding `"in-progress"` misses). Both warn once per grid. See
 [Options and conversion](options-and-conversion.md#dev-mode-warnings).
 
 ## Enterprise setup

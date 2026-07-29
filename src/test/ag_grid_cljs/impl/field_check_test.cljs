@@ -2,55 +2,14 @@
   "Field-check contract (ticket agd-01kyd3sefe7e, ADR 0017): the always-on dev
   diagnostic comparing each column's emitted field string against the keys of one
   sampled row. Node owns our contract given AG Grid's answers, so the Column and
-  GridApi objects here are fakes; the browser suite owns the two assertions that
-  are about AG Grid itself. Deliberately never calls enable-dev-validations! —
+  GridApi objects come from test-support's fakes; the browser suite owns the two
+  assertions that are about AG Grid itself. Deliberately never calls
+  enable-dev-validations! —
   the field check is not behind that gate."
   (:require [cljs.test :refer [deftest is testing]]
             [ag-grid-cljs.impl.validate :as v]
-            [ag-grid-cljs.test-support :refer [capture]]))
-
-;; --- fakes ------------------------------------------------------------------
-
-(defn- fake-col
-  "A fake AG Grid Column: `col-def` is the merged ColDef (a JS object), and the
-  two dot-notation predicates answer what AG Grid resolved at column-build time."
-  ([col-def] (fake-col col-def false false))
-  ([col-def field-dots? tooltip-dots?]
-   #js {:getColDef                  (fn [] col-def)
-        :isFieldContainsDots        (fn [] field-dots?)
-        :isTooltipFieldContainsDots (fn [] tooltip-dots?)}))
-
-(defn- fake-node
-  "A fake RowNode. `data` nil models a CSRM group node; :group true models a
-  group row (an SSRM group row carries only its grouping field)."
-  [data group?]
-  #js {:data data :group group?})
-
-(defn- fake-api
-  "A fake GridApi, as `[api calls nodes]`. `:columns` nil models the
-  pre-colModel.ready window; `nodes` is a mutable atom of what forEachNode
-  yields, so a test can land a row after installing and then fire a listener.
-  `calls` records the registered listeners and the two call counts."
-  [{:keys [columns nodes]}]
-  (let [nodes (atom (vec nodes))
-        calls (atom {:listeners [] :get-columns 0 :for-each-node 0})
-        api #js {:getColumns
-                 (fn []
-                   (swap! calls update :get-columns inc)
-                   (when columns (into-array columns)))
-                 :forEachNode
-                 (fn [f]
-                   (swap! calls update :for-each-node inc)
-                   (doseq [n @nodes] (f n)))
-                 :addEventListener
-                 (fn [event f]
-                   (swap! calls update :listeners conj [event f]))}]
-    [api calls nodes]))
-
-(defn- fire!
-  "Invoke the listener registered for `event` on a fake api's `calls` record."
-  [calls event]
-  ((some (fn [[e f]] (when (= e event) f)) (:listeners @calls)) nil))
+            [ag-grid-cljs.test-support
+             :refer [capture fake-api fake-col fake-node fire!]]))
 
 ;; --- check-fields! (pure core) ----------------------------------------------
 

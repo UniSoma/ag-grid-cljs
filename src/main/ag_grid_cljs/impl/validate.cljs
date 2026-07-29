@@ -1,5 +1,5 @@
 (ns ag-grid-cljs.impl.validate
-  "Three dev-only diagnostics, only the first gated (ADR 0017, ADR 0019). All
+  "Four dev-only diagnostics, only the first gated (ADR 0017, ADR 0019). All
   are warn-only: none ever rejects or alters what AG Grid receives (ADR 0002).
 
   DEV VALIDATIONS — position-aware validation of the EDN options map, run at the
@@ -25,6 +25,13 @@
   did-you-mean. ALWAYS ON: it is registry-free (it compares two consumer-supplied
   things to each other), so the drift argument behind the gate does not apply and
   enable-dev-validations! does not cover it.
+
+  REF-DATA CHECK — install-ref-data-check!, which compares a :ref-data column's
+  sampled row value against that column's own emitted refData keys and warns on a
+  NEAR-MATCH, since AG Grid resolves refData[value] and an unmatched value renders
+  the cell blank (ADR 0019 §9). ALSO ALWAYS ON, and registry-free for the same
+  reason. It shares the field check's plumbing: same two events, same row sample,
+  its own per-grid state.
 
   Every registry reference here sits inside ^boolean goog.DEBUG guards and the
   whole namespace is reached only from goog.DEBUG-guarded call sites, so
@@ -263,10 +270,19 @@
              :field   t
              :row-key (lookup-key t (.isTooltipFieldContainsDots col))}))))
 
+(defn- target-key
+  "What per-grid `state` remembers a target by, i.e. what the check's question is
+  about. The field check asks about the FIELD, so the field string is the identity
+  and one typo across ten columns warns once. The ref-data check asks about a
+  column's own `refData` map, so it supplies a `:col-id` and two columns over one
+  field with different maps are two questions."
+  [{:keys [col-id field]}]
+  (or col-id field))
+
 (defn- unresolved?
-  "Has no verdict yet been reached for this target's field string?"
-  [state {:keys [field]}]
-  (not (contains? @state field)))
+  "Has no verdict yet been reached for this target?"
+  [state target]
+  (not (contains? @state (target-key target))))
 
 (defn first-row
   "The first loaded leaf data row, or nil (public for the node suite). Group rows
@@ -296,7 +312,7 @@
   Emits with `warn!`, not `warn-once!`: `state` is not a dedup set and cannot be
   one. It holds resolved fields — conj'd for every unresolved target, including
   those found PRESENT — because it is also the short-circuit that keeps
-  `run-field-check!` off `forEachNode` on every `modelUpdated` and
+  `run-live-check!` off `forEachNode` on every `modelUpdated` and
   `newColumnsLoaded`, and `newColumnsLoaded` fires on sort and resize. A
   `warn-once!` owning it would conj only on warn, leaving present fields
   permanently unresolved and re-walking the row model on every sort (ADR 0022 §7)."
@@ -304,7 +320,7 @@
   (when (js-object? row)
     (doseq [{:keys [kind field row-key] :as target} targets
             :when (unresolved? state target)]
-      (swap! state conj field)
+      (swap! state conj (target-key target))
       (when-not (js-in row-key row)
         (warn/warn! "column "
                     (if (= :tooltip-field kind) "tooltip field" "field") " "
@@ -312,33 +328,139 @@
                     (when-let [sug (closest row-key (js-keys row))]
                       (str " — did you mean " (pr-str sug) "?")))))))
 
-(defn- run-field-check!
-  "One pass over the live grid. `getColumns` returns null until colModel.ready;
-  the short-circuit on already-resolved fields keeps the steady state a
-  set-membership test rather than a full forEachNode traversal, which matters
-  because newColumnsLoaded also fires on sort and resize."
-  [^js api state]
+;; --- live-grid check plumbing (shared by the field and ref-data checks) ------
+
+(defn- run-live-check!
+  "One pass over the live grid: map every `Column` to `targets-of` targets and,
+  unless every one of them already has a verdict, hand them and the sampled row
+  to `check!`. `getColumns` returns null until colModel.ready; the short-circuit
+  keeps the steady state a set-membership test rather than a full forEachNode
+  traversal, which matters because newColumnsLoaded also fires on sort and
+  resize."
+  [^js api state targets-of check!]
   (when-let [cols (.getColumns api)]
-    (let [targets (into [] (mapcat field-targets) cols)]
+    (let [targets (into [] (mapcat targets-of) cols)]
       (when (some #(unresolved? state %) targets)
-        (check-fields! state targets (first-row api))))))
+        (check! state targets (first-row api))))))
+
+(defn- install-live-check!
+  "Install one live-grid check: register `modelUpdated` (data arriving by any
+  route) and `newColumnsLoaded` (columnDefs replaced), then run it once. The
+  immediate run is load-bearing, not belt-and-braces — addEventListener is only
+  reachable after createGrid returns, by which point both events have already
+  fired for the initial columns and rows, so a grid that is never subsequently
+  modified would otherwise never be checked.
+
+  State is per-grid, held in the listener closure: both checks state a
+  relationship between this column and THIS grid's rows, so the truth is
+  grid-scoped (ADR 0022 §1). The module-global dedup set would be wrong twice
+  over — it would silence a real bug on a second grid with differently-shaped
+  rows, and being `defonce` it survives hot reload, so a typo you just fixed and
+  then reintroduced would be met with silence (ADR 0017 §9)."
+  [^js api targets-of check!]
+  (let [state (atom #{})]
+    (letfn [(run! [_] (run-live-check! api state targets-of check!))]
+      (.addEventListener api "modelUpdated" run!)
+      (.addEventListener api "newColumnsLoaded" run!)
+      (run! nil))))
 
 (defn install-field-check!
-  "Install the field check on a live grid: register `modelUpdated` (data arriving
-  by any route) and `newColumnsLoaded` (columnDefs replaced), then run the check
-  once. The immediate run is load-bearing, not belt-and-braces — addEventListener
-  is only reachable after createGrid returns, by which point both events have
-  already fired for the initial columns and rows, so a grid that is never
-  subsequently modified would otherwise never be checked.
-
-  State is per-grid, held in the listener closure: the \"present in this grid's
-  rows\" half is inherently per-grid, and the module-global dedup set would both
-  silence a real bug on a second grid with differently-shaped rows and survive
-  hot reload. Not gated by enable-dev-validations! (ADR 0017)."
+  "Install the field check on a live grid (ADR 0017). Not gated by
+  enable-dev-validations! — it is registry-free."
   [^js api]
   (when ^boolean goog.DEBUG
-    (let [state  (atom #{})
-          check! (fn [_] (run-field-check! api state))]
-      (.addEventListener api "modelUpdated" check!)
-      (.addEventListener api "newColumnsLoaded" check!)
-      (check! nil))))
+    (install-live-check! api field-targets check-fields!)))
+
+;; --- ref-data check (always-on, ADR 0019 §9) --------------------------------
+;; The seventh consumer-keyed option, and the only one whose citation site is the
+;; ROW DATA: AG Grid resolves `refData[value] || ""`, so `:ref-data
+;; {:in-progress "In Progress"}` emits `inProgress` and a row holding
+;; "in-progress" renders a BLANK cell. Cross-reference, not the keyword-key
+;; heuristic — the citation is unreachable from the options map (rows leave it at
+;; creation, ADR 0004) but reachable from the live grid, which is where this sits.
+
+(defn ref-data-targets
+  "The checkable target of one AG Grid `Column` for the ref-data check — a
+  0-or-1-element vector of `{:col-id <id> :field <emitted string> :dots? <bool>
+  :ref-keys [<emitted refData keys>]}` (public for the node suite). The `:col-id`
+  is the per-grid state key: this check's question is about the column's own map,
+  not about the field (see `target-key`).
+
+  Two supersessions, both mirroring skips the field check already makes: a
+  `valueFormatter` means AG Grid never consults `refData` at all (`formatValue`
+  reaches the refData branch only in the formatter's `else`), and a `valueGetter`
+  means the emitted field is not where the value comes from."
+  [^js col]
+  (let [d (.getColDef col)
+        f (.-field d)
+        rd (.-refData d)]
+    (if (and (string? f) (seq f)
+             (js-object? rd)
+             (nil? (.-valueGetter d))
+             (nil? (.-valueFormatter d)))
+      [{:col-id   (.getColId col)
+        :field    f
+        :dots?    (.isFieldContainsDots col)
+        :ref-keys (vec (js-keys rd))}]
+      [])))
+
+(defn- field-value
+  "The value AG Grid resolves out of `row` for `field`. A dotted field walks the
+  whole path, unlike the field check's first-segment-only PRESENCE test (ADR 0017
+  §7): walking cannot false-positive here, since a missing hop yields a non-string
+  and a non-string is silence."
+  [row field dots?]
+  (if dots?
+    (reduce (fn [o k] (when (js-object? o) (unchecked-get o k)))
+            row (.split field "."))
+    (unchecked-get row field)))
+
+(defn check-ref-data!
+  "Warn once for each of `targets` whose sampled row value is absent from that
+  column's own `refData` keys AND near-matches one of them (public for the node
+  suite). `state` and the warn-vs-resolve split are the field check's, for the
+  same reasons (ADR 0022 §7).
+
+  The **near-match** is what keeps this registry-free and false-positive-free
+  (ADR 0019 §6): `:ref-data` is sparse by intent, so a value with no close key is
+  an unmapped value, not a misspelling. It is also what refutes the camel-row
+  false positive this check was designed against — correct code under EITHER row
+  recipe stays silent, so no signal for which recipe is in force is needed.
+
+  A non-string or empty value reaches no lookup, so it warns nothing: that covers
+  a field the field check already reported absent, a nil cell, and a numeric
+  column. A non-object `row` (including nil: no rows loaded) resolves nothing.
+
+  The message PRESCRIBES a spelling only when it can prove which side is wrong.
+  When the nearest key is exactly what conversion emits for the value's kebab
+  form, the consumer wrote a keyword key and the key is the wrong side, so the fix
+  is certain — and the authored keyword can be named back to them. Otherwise the
+  near-match is a plain misspelling that could be on either side (a typo in the
+  key, or in the row data), so the message reports the mismatch and states the
+  rule instead of telling a consumer to break a correct `:ref-data`."
+  [state targets row]
+  (when (js-object? row)
+    (doseq [{:keys [field dots? ref-keys] :as target} targets
+            :when (unresolved? state target)]
+      (swap! state conj (target-key target))
+      (let [v (field-value row field dots?)]
+        (when (and (string? v) (seq v) (not-any? #(= v %) ref-keys))
+          (when-let [sug (closest v ref-keys)]
+            (warn/warn! "column field " (pr-str field) " :ref-data has no key "
+                        (pr-str v) " — the row value AG Grid looks up, so the"
+                        " cell renders blank. Nearest key: " (pr-str sug) "."
+                        (if (= sug (convert/kebab->camel v))
+                          (str " That is what conversion emits for the keyword"
+                               " key :" v " — :ref-data keys are your rows'"
+                               " values, not AG Grid vocabulary. Write "
+                               (pr-str v) ".")
+                          (str " A :ref-data key must be spelled exactly like"
+                               " the row values it maps.")))))))))
+
+(defn install-ref-data-check!
+  "Install the ref-data check on a live grid (ADR 0019 §9). Always on, like the
+  field check and for the same reason: it compares two consumer-supplied things
+  to each other, so there is no registry to drift and no gate to earn."
+  [^js api]
+  (when ^boolean goog.DEBUG
+    (install-live-check! api ref-data-targets check-ref-data!)))

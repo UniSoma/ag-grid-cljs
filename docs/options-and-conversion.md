@@ -96,6 +96,7 @@ the converter cannot see. Those keys are your vocabulary, so they are **strings*
 | `:column-types` | column type names | ColDef `:type` |
 | `:data-type-definitions` | cell-data-type names | ColDef `:cell-data-type` |
 | `:components` | component names | `:cell-renderer`, `:cell-editor`, `:filter` |
+| `:ref-data` (ColDef) | your own cell values | **your row data** |
 
 Write a keyword instead and it camelizes like any other key: `{:row-warning f}`
 emits the class `"rowWarning"`, which matches no `.row-warning` rule — no error,
@@ -105,6 +106,35 @@ Keywords on **both** sides of a citation do work: `{:agg-funcs {:my-total f}}`
 with `:agg-func :my-total` camelizes to `"myTotal"` twice and matches. But it
 leaves you one edit away from a silent break, since changing either side alone
 breaks the citation. Strings on both sides is the spelling that cannot rot.
+
+### `:ref-data`: the key is spelled like your row values
+
+`:ref-data` is the one member whose citation site is the row data, so "strings on
+both sides" is not its rule — **the key must match the exact spelling your rows
+carry**, and which spelling that is depends on your [row
+recipe](#if-your-rows-are-cljs-data). AG Grid resolves `refData[value] || ""`, so
+an unmatched value renders the cell **blank** — this option loses the content, not
+just the styling:
+
+```clojure
+;; literal kebab-keyed rows -> a kebab STRING key
+{:field "status" :ref-data {"in-progress" "In Progress"}}   ; row value "in-progress"
+
+;; camel-keyed rows -> a camel STRING key
+{:field :status  :ref-data {"inProgress" "In Progress"}}    ; row value "inProgress"
+```
+
+A keyword key happens to work under the camel recipe (`:in-progress` camelizes to
+`inProgress`, which is what the row carries) and breaks under the kebab one. A
+string is the spelling that says what it means either way. Dev builds warn when
+the sampled row's value near-misses one of the keys — see [below](#dev-mode-warnings).
+
+The same camelization reaches keyword **values** in `:values` — a Set Filter's
+`{:filter-params {:values [...]}}` or a select editor's `{:cell-editor-params
+{:values [...]}}`. `[:pending :in-progress]` emits `["pending" "inProgress"]`, so
+under the kebab recipe the editor writes a value no row uses. Same rule: list your
+cell values as strings, spelled the way your rows spell them. No check ships for
+this one.
 
 Not every map with your own keys needs strings. `:cell-renderer-params` keys are
 yours too and keywords are fine there, because the name never leaves the
@@ -253,10 +283,16 @@ open-surface guarantee holds. You get:
 - **Class-rule key nudge** — a `:row-class-rules` / `:cell-class-rules` key
   written as a keyword whose name contains a `-`, or carrying a namespace; it
   emits a camelized CSS class no stylesheet rule matches. Runs at creation and on
-  update. The other consumer-keyed options above are *not* checked: their names
-  are cited from inside the options map, where a keyword key is correct and a
-  mismatch is a different diagnostic — so silence there is not a clean bill of
-  health.
+  update. The four options whose names are cited from *inside* the options map
+  are not checked this way: there a keyword key is correct and a mismatch is a
+  different diagnostic — so silence there is not a clean bill of health.
+- **Ref-data nudge** — a `:ref-data` column's row value is not one of that
+  column's `:ref-data` keys, but *nearly* matches one, so the cell renders blank.
+  Names the value AG Grid looked up, the nearest key, and the spelling to write;
+  warns once per column, at creation and whenever columns or rows change.
+  Silent when there is no near match (a sparse `:ref-data` is a normal thing to
+  write), when the column has a `:value-formatter` (AG Grid never consults
+  `:ref-data` then) or a `:value-getter`, and until a row has loaded.
 - **XSS nudge** — a renderer function returned an HTML-looking string (AG Grid
   injects it via `innerHTML`); see [Cell rendering](cell-rendering.md).
 - **Set / namespaced-keyword warnings** — as described above.
@@ -267,12 +303,12 @@ open-surface guarantee holds. You get:
   row data does not have, so the column renders blank. Warns once per field
   with a did-you-mean, at creation and whenever columns or rows change.
 
-The field check and the class-rule key nudge need no opt-in — both are on in
-every dev build, because neither consults the key registry. The gate exists
-because typo detection tests your keys against a registry pinned to one AG Grid
-version, and a consumer on a newer AG Grid would get false "unknown option"
-warnings from that drift; the field check compares your columns against your own
-rows, so it has nothing to drift against.
+The field check, the class-rule key nudge and the ref-data nudge need no opt-in —
+all three are on in every dev build, because none consults the key registry. The
+gate exists because typo detection tests your keys against a registry pinned to
+one AG Grid version, and a consumer on a newer AG Grid would get false "unknown
+option" warnings from that drift; these three compare two things *you* supplied to
+each other, so they have nothing to drift against.
 
 The field check reports the **camel string AG Grid is looking up**, not your
 kebab source:
@@ -280,6 +316,18 @@ kebab source:
 ```
 [ag-grid-cljs] column field "fristName" is not a key in the row data — did you mean "firstName"?
 ```
+
+The ref-data nudge reads the same way — the value is the property AG Grid looked
+up in your `:ref-data` map and did not find:
+
+```
+[ag-grid-cljs] column field "status" :ref-data has no key "in-progress" — the row value AG Grid looks up, so the cell renders blank. Nearest key: "inProgress". That is what conversion emits for the keyword key :in-progress — :ref-data keys are your rows' values, not AG Grid vocabulary. Write "in-progress".
+```
+
+It names a spelling to write only when it can tell which side is wrong — when the
+nearest key is exactly what conversion emits for your value. If the two spellings
+differ some other way the typo could be in either the key or the row, so it
+reports the mismatch and leaves the call to you.
 
 A `:value-getter` on the ColDef suppresses the `:field` half (the getter
 supersedes the field) but never the `:tooltip-field` half, which AG Grid reads
