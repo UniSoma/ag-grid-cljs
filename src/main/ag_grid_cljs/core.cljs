@@ -97,11 +97,19 @@
   - a keyword — `(with-row-id opts :id)` reads that field from each JS row
     following the callback-bean lookup law (ADR 0018): `:first-name` reads
     `firstName` when that property is present, else the literal `\"first-name\"`.
-    Camel keeps priority; the value is `str`-coerced. Compiles to a `raw`
-    callback over the JS row, so the per-row hot path allocates no bean.
+    Camel keeps priority; the value is `str`-coerced. The row is read directly,
+    so the per-row hot path allocates no bean.
   - a function — `(with-row-id opts (fn [p] (:id (:data p))))` receives the
     kebab-bean params (ADR 0010; `(:data p)` is the row) and its return is
-    string-coerced. Wrap your own fn with `raw` to receive raw JS params.
+    string-coerced.
+  - a `raw`-wrapped function — `(with-row-id opts (raw (fn [^js p] ...)))`
+    receives the raw JS params instead of the bean, for the hot path. Its
+    return is `str`-coerced too.
+
+  The builder stashes your input rather than minting a callback; the callback
+  is built at the conversion boundary. So the thing the differ compares is the
+  input, and rebuilding the whole options map per render yields a `=` value and
+  a clean `update-grid!` diff (ADR 0021).
 
   Writes AG Grid's `getRowId` grid option (initial-only). Community; all
   supported versions.
@@ -112,18 +120,7 @@
           (with-columns [{:field :id} {:field :name}])
           (with-row-id :id))"
   [opts id]
-  (assoc opts :get-row-id
-         (if (keyword? id)
-           (let [literal (name id)
-                 camel   (convert/kebab->camel literal)]
-             (if (identical? literal camel)
-               (raw (fn [^js params] (str (unchecked-get (.-data params) literal))))
-               (raw (fn [^js params]
-                      (let [data (.-data params)]
-                        (str (unchecked-get data (if ^boolean (js/Object.hasOwn data camel)
-                                                   camel
-                                                   literal))))))))
-           (fn [params] (str (id params))))))
+  (assoc opts :get-row-id (convert/deferred :row-id id)))
 
 (defn- ->row-selection-mode
   "Coerce a friendly selection mode to the v32.2 rowSelection.mode string:

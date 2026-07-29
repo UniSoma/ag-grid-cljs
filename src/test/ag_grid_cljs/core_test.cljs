@@ -167,6 +167,30 @@
     (let [f (get-row-id-fn (grid/with-row-id {} (fn [p] (:id (:data p)))))]
       (is (= "7" (f #js {:data #js {:id 7}}))))))
 
+(deftest with-row-id-raw-fn-receives-raw-params-and-string-coerces
+  ;; The documented hot-path idiom, which raised a TypeError on the first row
+  ;; until construction moved to the boundary (ADR 0021 §4).
+  (testing "(raw f) opts out of the bean: the fn sees the JS params object"
+    (let [f (get-row-id-fn (grid/with-row-id {} (grid/raw (fn [^js p] (.-id (.-data p))))))]
+      (is (= "7" (f #js {:data #js {:id 7}})) "raw params, still str-coerced"))))
+
+(defn- row-id-of
+  "A top-level-def-d row-id fn: the consumer's half of rebuild stability."
+  [p]
+  (:id (:data p)))
+
+(deftest with-row-id-is-rebuild-stable-in-every-input-shape
+  ;; ADR 0021 §4: the builder assocs the consumer's own input, so what the
+  ;; differ compares is the input rather than a freshly minted closure. Each
+  ;; input is rebuilt per call, the way a render-driven consumer rebuilds it.
+  (doseq [[label mk-id] [["keyword"                #(keyword "id")]
+                         ["camel-fallback keyword" #(keyword "record-id")]
+                         ["top-level fn"           (constantly row-id-of)]
+                         ["(raw f)"                #(grid/raw row-id-of)]]]
+    (testing label
+      (is (= (grid/with-row-id {} (mk-id))
+             (grid/with-row-id {} (mk-id)))))))
+
 (deftest with-selection-bundles-rowselection-object-and-coerces-mode
   (testing ":mode is coerced to the v32.2 string; friendly keys pass through"
     (is (= {:row-selection {:mode "multiRow" :header-checkbox true}}
@@ -228,17 +252,38 @@
 
 (defn- rebuilt-opts
   "An options map rebuilt from scratch by the same fn on every call, the shape a
-  render-driven consumer produces. `:context` is the value that carries the test:
-  the top-level callback and the plain-map `:column-defs` were already = across
-  rebuilds. `:get-row-id` joins this fixture with the with-row-id relocation
-  (agd-01kynwzbcmnt), and a renderer with agd-01kynwzt3a16."
+  render-driven consumer produces. `:context` and `:get-row-id` are the values
+  that carry the test — both were fresh objects per rebuild before ADR 0021,
+  while the top-level callback and the plain-map `:column-defs` were already =.
+  A renderer joins this fixture with agd-01kynwzt3a16."
   ([] (rebuilt-opts "ada"))
   ([filter-text]
    (-> (grid/options)
        (grid/with-columns [{:field :id} {:field :first-name}])
+       (grid/with-row-id :id)
        (assoc :quick-filter-text filter-text
               :context (grid/raw {:tenant "acme" :roles #{:admin}})
               :on-cell-clicked on-cell-clicked))))
+
+(deftest builder-catalog-is-rebuild-stable
+  ;; ADR 0021 §5 gives ADR 0009's admission bar a second clause: a public fn
+  ;; contributing an option value must produce = output for = input. All eight
+  ;; catalog entries, called twice with the same arguments. The renderer helpers
+  ;; (ADR 0011) are the remaining gap — agd-01kynwzt3a16.
+  (let [rows     #js [#js {:id 1}]
+        get-rows (fn [_])]
+    (doseq [[label build]
+            [["(options)"                #(grid/options)]
+             ["(options base)"           #(grid/options {:pagination true})]
+             ["with-columns"             #(grid/with-columns {} [{:field :id}])]
+             ["with-row-data"            #(grid/with-row-data {} rows)]
+             ["with-row-id"              #(grid/with-row-id {} :id)]
+             ["with-selection"           #(grid/with-selection {} {:mode :multiple})]
+             ["with-pagination"          #(grid/with-pagination {} {:page-size 25})]
+             ["with-cell-selection"      #(grid/with-cell-selection {} {:handle {:mode "fill"}})]
+             ["with-infinite-datasource" #(grid/with-infinite-datasource {} get-rows {:cache-block-size 50})]]]
+      (testing label
+        (is (= (build) (build)))))))
 
 (deftest update-grid!-is-clean-on-a-rebuilt-options-map
   (testing "rebuilding the whole map with the same inputs is a no-op diff"

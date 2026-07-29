@@ -71,6 +71,39 @@ special treatment:
 Callbacks are ordinary options, so re-supplying `:on-cell-clicked` with a new
 closure updates the handler through this same channel — the latest closure wins.
 
+### Rebuilding the whole map is a supported shape
+
+You do not have to hand-assemble a patch. Rebuilding the entire options map
+during render and passing it to `update-grid!` is supported (ADR 0021): every
+value the wrapper manufactures is `=` to itself given `=` inputs, so a rebuild
+from unchanged inputs diffs to nothing — no `setGridOption`, no initial-only
+warning.
+
+```clojure
+;; Rebuilt from scratch on every render. Same inputs, empty diff.
+(defn grid-opts [filter-text]
+  (-> (ag/options)
+      (ag/with-columns columns)
+      (ag/with-row-id :id)                    ; stashes :id, not a fresh closure
+      (assoc :quick-filter-text filter-text
+             :context          (ag/raw app-context)
+             :on-cell-clicked  on-cell-clicked)))
+```
+
+That covers our half. Your own callbacks are yours: an inline
+`(fn [params] ...)` written fresh each render is a genuinely new value, and the
+differ ships it — the right answer for the input it was given. Define handlers
+at namespace level, as `on-cell-clicked` is above. (A stable reference that
+closes over changed state is the case no differ can catch; re-supply it when
+the captured state changes.)
+
+One caveat is open: the renderer helpers — [[ag-grid-cljs.render/renderer]],
+[[ag-grid-cljs.render/dom-renderer]] and [[ag-grid-cljs.react/react-renderer]] —
+still build a fresh component class per call, so `:column-defs` carrying one
+re-applies on every rebuild. Nothing breaks; the cost is redundant work and a
+column state that AG Grid preserves on a best-effort basis. Pin `:col-id` on
+your columns if that state matters.
+
 ## Pattern: `set-rows!` from your db
 
 The default consumer pattern, proven against the Fulcro reference bar (ADR

@@ -106,6 +106,20 @@
       (is (= ["a"] (vec (js/Object.keys o))))
       (is (= [] (vec (js/Object.keys f)))))))
 
+(deftest deferred-values-construct-at-the-boundary
+  ;; ADR 0021 §4: a builder stashes the consumer's input under an internal tag
+  ;; and the boundary constructs the real value, so equal inputs give = maps.
+  (testing "an untagged Raw still unwraps by a plain field read"
+    (let [m {:a 1}]
+      (is (identical? m (c/->js (c/raw m))))))
+  (testing "an unregistered tag falls back to the same plain unwrap"
+    (let [m {:a 1}]
+      (is (identical? m (c/->js (c/->Raw m :no-such-tag))))))
+  (testing "a registered tag defers construction to conversion time"
+    (let [v (c/deferred :row-id :id)]
+      (is (not (fn? v)) "the builder stashes the input; it does not construct")
+      (is (fn? (c/->js v)) "the boundary constructs"))))
+
 (deftest sets-pass-through
   (let [s #{1 2 3}
         o (c/->js {:oops s})]

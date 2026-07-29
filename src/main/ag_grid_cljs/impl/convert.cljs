@@ -107,6 +107,30 @@
 (defn raw? [x]
   (instance? Raw x))
 
+;; --- deferred values (ADR 0021 §4) ------------------------------------------
+;; A helper that would mint a fresh closure or class per call stashes its INPUT
+;; here instead and lets the boundary construct the real value, so equal inputs
+;; give = options maps. Internal to impl: public raw keeps its single arity and
+;; its verbatim meaning.
+
+(defn deferred
+  "Stash x under an internal construction tag. ->js runs `construct` on it when
+  the conversion boundary reaches the wrapper."
+  [tag x]
+  (->Raw x tag))
+
+(defmulti construct
+  "Build the JS value a deferred input stands for. Open dispatch rather than a
+  case so the renderer helpers can register their own construction and this
+  namespace never has to require `render` or `react` — `react` is optional
+  precisely so core consumers need not install react-dom. Load order is safe by
+  construction: a tagged value can only exist if the namespace that mints it was
+  loaded. :row-id is the exception that registers here, since its construction
+  needs this namespace's own key transform and fn wrapper."
+  (fn [tag _x] tag))
+
+(defmethod construct :default [_ x] x)
+
 ;; --- forward conversion -----------------------------------------------------
 
 (declare ->js)
@@ -227,6 +251,34 @@
      (->js (apply f (wrap-arg a) (wrap-arg b) (wrap-arg c)
                   (map wrap-arg more))))))
 
+(defn- row-id-keyword-fn
+  "getRowId over the raw JS row, following the callback-bean lookup law (ADR
+  0018 §4): the camelized property when present on the row, the literal name
+  otherwise — presence, not truthiness, and own-property so inherited members
+  cannot shadow a literal data key. Reads the row directly, so the per-row hot
+  path allocates no bean."
+  [k]
+  (let [literal (name k)
+        camel   (kebab->camel literal)]
+    (if (identical? literal camel)
+      (fn [^js params] (str (unchecked-get (.-data params) literal)))
+      (fn [^js params]
+        (let [data (.-data params)]
+          (str (unchecked-get data (if ^boolean (js/Object.hasOwn data camel)
+                                     camel
+                                     literal))))))))
+
+(defmethod construct :row-id [_ id]
+  (cond
+    (keyword? id) (row-id-keyword-fn id)
+    ;; (raw f): raw JS params, still str-coerced. A tagged Raw bypasses ->js's
+    ;; generic fn auto-wrapping, so both fn branches state their own marshalling.
+    (raw? id)     (let [f (.-x ^Raw id)]
+                    (fn [params] (str (f params))))
+    ;; What the converter would have applied to a bare fn value in the options
+    ;; map: kebab-bean args, return through ->js (a no-op on the coerced string).
+    :else         (wrap-fn (fn [params] (str (id params))))))
+
 (defn- wrap-renderer-fn
   "Like wrap-fn, but dev-warns when the fn returns an HTML-looking string:
   vanilla AG Grid injects a function renderer's string return as innerHTML
@@ -275,7 +327,13 @@
   fns auto-wrapped, everything else untouched."
   [x]
   (cond
-    (raw? x)        (.-x ^Raw x)
+    (raw? x)        (let [tag (.-tag ^Raw x)]
+                      ;; The untagged case — every consumer (raw v), and the
+                      ;; callback-return path this runs on per call (ADR 0005
+                      ;; §7) — stays a direct field read, not a dispatch.
+                      (if (nil? tag)
+                        (.-x ^Raw x)
+                        (construct tag (.-x ^Raw x))))
     (map? x)        (map->js x)
     (keyword? x)    (do (when (namespace x)
                           (warn "namespaced keyword " x " converts by name only; namespace dropped"))

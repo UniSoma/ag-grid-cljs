@@ -53,6 +53,13 @@ to dispatch back into your app calls its framework's API with an **explicit
 reference** (a `re-frame.core/dispatch`, a Fulcro `comp/transact!` against the
 app you `defonce`d), since the detached root has no ambient context to lean on.
 
+That "not by re-rendering" is about **rows**. Options are the other way round:
+rebuilding the whole options map during your own render and pushing it through
+`update-grid!` is a supported shape, because the wrapper's builders assoc data
+rather than freshly minted closures, so an unchanged rebuild diffs to nothing.
+See [Rebuilding the whole map is a supported
+shape](updating-data.md#rebuilding-the-whole-map-is-a-supported-shape).
+
 ## The nested-`createRoot` caveat
 
 Each `react-renderer` cell is its own `createRoot`. A React root nested inside
