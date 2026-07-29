@@ -4,6 +4,7 @@ node_modules/
 target/
 src/dev/public/js/
 .clj-kondo/.cache/
+.clj-kondo/imports
 .lsp/.cache/
 src/dev/public/js-fulcro/
 src/dev/public/js-enterprise/
