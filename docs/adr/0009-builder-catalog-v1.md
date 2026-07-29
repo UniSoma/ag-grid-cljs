@@ -19,6 +19,8 @@ A separate input (from the cell-renderer grilling): AG Grid Cell Data Types (v31
 
 A v1 builder must COERCE input OR BUNDLE behavior — never merely name a single option. Discoverability-only sugar over a single boolean/enum is excluded; it's outdocumented by the committed kebab<->camel reference table + dev-mode key registry (ADR 0007).
 
+The bar gains a second clause from ADR 0021: a builder's output must be **rebuild-stable** — `=` to itself given `=` inputs — so a consumer who rebuilds the options map per render gets a clean `update-grid!` diff. A builder that mints a fresh closure or object per call fails it unless construction is deferred to the conversion boundary. ADR 0021 states the clause as binding any public fn contributing an option value, not just the builders in this catalog, since it covers the renderer helpers (ADR 0011) too.
+
 ### v1 catalog (8 entries) — plain-map assoc sugar, opts-first, returns opts, `->`-threadable, bang-free
 
 1. `(options)` / `(options base)` — constructor: start an EDN options map.
@@ -68,3 +70,4 @@ Per-column `col` builder; row-grouping bundle; theming builders (theming is docs
 - ADR 0008 — options-diffing semantics (`with-row-id` is load-bearing for diffing)
 - ADR 0010 — event and callback shape (`getRows` marshalling)
 - ADR 0013 — theming docs-only in v1
+- ADR 0021 — rebuild-stable option values (the second admission-bar clause)

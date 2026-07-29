@@ -63,6 +63,49 @@
         o (c/->js {:context (c/raw m)})]
     (is (identical? m (unchecked-get o "context")) "raw emits untouched")))
 
+(deftest raw-compares-by-value
+  ;; The rebuild-stability contract (ADR 0021): a value the wrapper manufactures
+  ;; must be = to itself given = inputs, so a consumer rebuilding the options map
+  ;; per render gets a clean diff out of update-grid!.
+  (testing "two Raws wrapping the same fn are ="
+    (let [f (fn [_])]
+      (is (= (c/raw f) (c/raw f)))))
+  (testing "two Raws wrapping equal-but-distinct CLJS maps are ="
+    (is (= (c/raw {:tenant "acme"}) (c/raw {:tenant (str "ac" "me")}))))
+  (testing "Raws wrapping unequal values are not ="
+    (is (not= (c/raw {:tenant "acme"}) (c/raw {:tenant "other"})))
+    (is (not= (c/raw (fn [_])) (c/raw (fn [_])))
+        "distinct fns are unequal — = degrades to identity for functions"))
+  (testing "a Raw is not = to the bare value it wraps"
+    (is (not= (c/raw {:a 1}) {:a 1}))
+    (is (not= {:a 1} (c/raw {:a 1}))))
+  (testing "a tagged Raw is never = to an untagged Raw wrapping the same value"
+    (let [m {:a 1}]
+      (is (not= (c/->Raw m :row-id) (c/raw m)))
+      (is (not= (c/raw m) (c/->Raw m :row-id)))
+      (is (not= (c/->Raw m :row-id) (c/->Raw m :renderer)) "the tag participates")
+      (is (= (c/->Raw m :row-id) (c/->Raw {:a 1} :row-id)) "same tag, = value"))))
+
+(deftest raw-hashes-without-touching-the-wrapped-value
+  (testing "equal Raws hash equally"
+    (let [f (fn [_])]
+      (is (= (hash (c/raw f)) (hash (c/raw f))))
+      (is (= (hash (c/raw {:a 1})) (hash (c/raw {:a 1}))))
+      (is (= (hash (c/->Raw {:a 1} :row-id)) (hash (c/->Raw {:a 1} :row-id))))))
+  (testing "equal maps carrying equal Raws hash equally"
+    ;; hashing a map hashes its values, so this is the path an options map takes
+    (is (= (hash {:context (c/raw {:a 1})}) (hash {:context (c/raw {:a 1})}))))
+  (testing "hashing a Raw adds no property to the wrapped value"
+    ;; ADR 0021 §3: the hash derives from the tag alone precisely so the wrapped
+    ;; value never reaches goog/getUid, which would mutate it
+    (let [o #js {:a 1}
+          f (fn [_])]
+      (hash (c/raw o))
+      (hash (c/raw f))
+      (hash {:context (c/raw o)})
+      (is (= ["a"] (vec (js/Object.keys o))))
+      (is (= [] (vec (js/Object.keys f)))))))
+
 (deftest sets-pass-through
   (let [s #{1 2 3}
         o (c/->js {:oops s})]

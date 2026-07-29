@@ -54,6 +54,7 @@ Documented as guidance, not differ logic:
 - Column-state preservation across a `:column-defs` update is AG Grid's "may, not guaranteed" -> pin `colId` (mirrors `:get-row-id` for rows).
 - Inline function values NESTED inside `:column-defs` make its structural `=` always-dirty -> full re-apply -> possible column-state reset. Use name-registered renderers / stable refs (ties to the renderer name-registration tier).
 - Memoized-stale callbacks (a stable fn ref closing over changed captured state) are unfixable by any differ policy -> the consumer must read live state at call time.
+- The `=` rule places a **counterpart obligation on the wrapper's own output**, stated in ADR 0021: every value the wrapper manufactures inside an options map must be `=` to itself given `=` inputs, or a consumer who rebuilds the map per render gets a dirty diff for values that never changed. The callback-stability guidance above is only the consumer's half.
 - `update-grid!` is a PATCH op. True declarative full-state (absent = revert-to-default) would be a separate opt-in built on top; it was punted to the Reagent/UIx adapters question, and ADR 0012 subsequently ruled framework adapters out of v1 entirely.
 
 ## Considered options
@@ -72,4 +73,5 @@ Documented as guidance, not differ logic:
 - ADR 0007 — key registry (`:initial?` classifier, warning dedup pattern)
 - ADR 0010 — event-callback shape
 - ADR 0012 — no framework adapters in v1 (home the full-state layer was punted to, then ruled out)
+- ADR 0021 — rebuild-stable option values (the counterpart obligation this differ's `=` rule places on the wrapper)
 - docs/research/ag-grid-react-wrapper.md §1.2, §4 — evidence against re-apply-every-prop and for callback-stability guidance

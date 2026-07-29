@@ -218,6 +218,42 @@
       (is (= 1 (unchecked-get @captured "rowCount")))
       (is (array? (unchecked-get @captured "rowData"))))))
 
+;; --- rebuild stability (ADR 0021) -------------------------------------------
+
+(defn- on-cell-clicked
+  "A top-level-def-d callback: the consumer's half of the rebuild-stability
+  contract. A fresh inline lambda per render is theirs to keep stable."
+  [_e]
+  nil)
+
+(defn- rebuilt-opts
+  "An options map rebuilt from scratch by the same fn on every call, the shape a
+  render-driven consumer produces. `:context` is the value that carries the test:
+  the top-level callback and the plain-map `:column-defs` were already = across
+  rebuilds. `:get-row-id` joins this fixture with the with-row-id relocation
+  (agd-01kynwzbcmnt), and a renderer with agd-01kynwzt3a16."
+  ([] (rebuilt-opts "ada"))
+  ([filter-text]
+   (-> (grid/options)
+       (grid/with-columns [{:field :id} {:field :first-name}])
+       (assoc :quick-filter-text filter-text
+              :context (grid/raw {:tenant "acme" :roles #{:admin}})
+              :on-cell-clicked on-cell-clicked))))
+
+(deftest update-grid!-is-clean-on-a-rebuilt-options-map
+  (testing "rebuilding the whole map with the same inputs is a no-op diff"
+    (let [h (handle (rebuilt-opts))
+          w (capture #(grid/update-grid! h (rebuilt-opts)))]
+      (is (= [] (set-grid-option-calls h))
+          "every rebuilt value is = to the stashed one, so nothing ships")
+      (is (= [] w)
+          "no initial-only warning for :context, which did not semantically change")))
+  (testing "positive control: one changed key produces exactly one call"
+    (let [h (handle (rebuilt-opts))
+          w (capture #(grid/update-grid! h (rebuilt-opts "grace")))]
+      (is (= [[:set-grid-option "quickFilterText" "grace"]] (set-grid-option-calls h)))
+      (is (= [] w)))))
+
 (deftest update-grid!-stash-reflects-applied-state
   (testing "the returned handle's stash merges present new keys so later diffs stay minimal"
     (let [h0 (handle {:pagination false})

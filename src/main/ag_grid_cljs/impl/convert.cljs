@@ -75,13 +75,34 @@
 
 ;; --- raw escape hatch -------------------------------------------------------
 
-(deftype Raw [x])
+(deftype Raw [x tag]
+  ;; Rebuild-stability contract (ADR 0021): a value the wrapper manufactures is
+  ;; = to itself given = inputs, so a consumer who rebuilds the whole options map
+  ;; per render gets a clean diff out of update-grid!'s = comparison (ADR 0008).
+  ;; Without this, = fell through to identity and (raw m) was never = to (raw m).
+  IEquiv
+  (-equiv [_ other]
+    (and (instance? Raw other)
+         (= tag (.-tag ^Raw other))
+         ;; = and not identical?: this is what makes two rebuilt (raw {...})
+         ;; values equal. For wrapped fns and JS objects = degrades to identity
+         ;; anyway, which is the strongest answer available for them.
+         (= x (.-x ^Raw other))))
+
+  IHash
+  ;; From the tag ALONE, deliberately: the natural (hash [x tag]) would route a
+  ;; wrapped JS object or function through goog/getUid, which MUTATES it with a
+  ;; closure_uid_ property — and the values we wrap include consumer renderer
+  ;; classes and callbacks. Colliding hashes are legal; mutating a consumer's
+  ;; value to compute one is not. Hashing a Raw is off the hot path (it happens
+  ;; only when an options map carrying one is itself hashed).
+  (-hash [_] (hash tag)))
 
 (defn raw
   "Sole escape hatch: the converter emits x untouched — no recursion,
   no renaming, no function wrapping."
   [x]
-  (->Raw x))
+  (->Raw x nil))
 
 (defn raw? [x]
   (instance? Raw x))

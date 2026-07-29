@@ -56,6 +56,14 @@ _Avoid_: params bean, row bean, data bean
 The callback bean's lookup rule: a keyword resolves to its camelized property when that property is present, and to its literal name otherwise.
 _Avoid_: kebab fallback, verbatim-key fallback
 
+**Rebuild-stable**:
+The property every value the wrapper manufactures for an options map must have: `=` to itself given `=` inputs, so a consumer who rebuilds the whole map during render gets a clean `update-grid!` diff (ADR 0021). The consumer's own closures are their half of the contract.
+_Avoid_: idempotent, referentially stable, memoized
+
+**Deferred value**:
+A wrapper-manufactured option value whose construction is postponed to the conversion boundary, with the consumer's input stashed under an internal tag so equal inputs compare `=`. The tag is internal; public `raw` stays verbatim.
+_Avoid_: lazy value, thunk, promise
+
 **GridHandle**:
 The value returned by `create-grid!` — `{:api :opts}` — carrying the raw GridApi (via `grid-api`) and the last-applied options for diffing.
 _Avoid_: grid instance, grid ref

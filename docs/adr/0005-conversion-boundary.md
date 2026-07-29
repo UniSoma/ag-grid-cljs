@@ -19,7 +19,7 @@ The wrapper's core promise (ADR 0002) is an idiomatic EDN options map over AG Gr
 
 3. **Keywords translate in value position too.** `:multi-row` -> `"multiRow"`; `:dom-layout :auto-height` -> `"autoHeight"`. One law: keyword = AG Grid vocabulary, translate; string = verbatim, hands off. This applies to `:field` (`:field :first-name` -> `"firstName"`; snake_case data uses the string form). Namespaced keywords convert by name with a dev warning on the dropped namespace.
 
-4. **Sole escape hatch: the `(ag/raw x)` wrapper** — a tiny wrapper type; the converter unwraps and emits `x` untouched, no recursion, no renaming. Metadata `^:raw` was rejected: invisible, and silently lost through collection operations. Canonical use: `:context (ag/raw my-cljs-map)` for an identity round-trip. Also works on functions (see point 7).
+4. **Sole escape hatch: the `(ag/raw x)` wrapper** — a tiny wrapper type; the converter unwraps and emits `x` untouched, no recursion, no renaming. Metadata `^:raw` was rejected: invisible, and silently lost through collection operations. Canonical use: `:context (ag/raw my-cljs-map)` for an identity round-trip. Also works on functions (see point 7). The wrapper type compares by value and carries an internal construction tag (ADR 0021); "sole escape hatch" stays literally true for consumers, since public `raw` keeps its single arity and its verbatim meaning and the tag is not part of the public surface.
 
 5. **Dev-mode warning on data-carrying keys** (`:row-data`, `:pinned-top-row-data`, `:context`, ...) receiving bare CLJS collections — the JS-by-contract nudge, pointing at `raw` or `clj->js`.
 
@@ -53,3 +53,4 @@ The wrapper's core promise (ADR 0002) is an idiomatic EDN options map over AG Gr
 - ADR 0003 — row data is JS by contract (passes untouched by construction)
 - ADR 0007 — generated key registry (dev warnings only, never gatekeeping)
 - ADR 0010 — event and callback API shape
+- ADR 0021 — rebuild-stable option values (`raw`'s value equality and the internal construction tag)

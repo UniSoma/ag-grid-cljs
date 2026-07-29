@@ -1,31 +1,32 @@
 ---
 id: agd-01kynwykcdyg
 title: Raw gains value equality; ADR 0021 records the rebuild-stability contract
-status: open
+status: closed
 type: bug
 priority: 1
 mode: afk
 created: '2026-07-29T02:58:37.581392463Z'
-updated: '2026-07-29T02:58:37.581392463Z'
+updated: '2026-07-29T03:14:24.510613520Z'
+closed: '2026-07-29T03:14:24.510613520Z'
 tags:
 - convert
 - differ
 - adr
 acceptance:
 - title: Two Raws wrapping the same fn are =; two Raws wrapping equal-but-distinct CLJS maps are =; Raws wrapping unequal values are not =
-  done: false
+  done: true
 - title: A tagged Raw is never = to an untagged Raw wrapping the same value
-  done: false
+  done: true
 - title: Equal Raws hash equally, and hashing a Raw never adds a property to the wrapped value
-  done: false
+  done: true
 - title: An options map built twice by the same fn, carrying :context (raw m), a top-level-def-d callback and :column-defs, produces zero setGridOption calls and zero warnings through update-grid!
-  done: false
+  done: true
 - title: 'Positive control in the same test: changing one key produces exactly one setGridOption call'
-  done: false
+  done: true
 - title: ADR 0021 is written, with the renderer helpers named as an open gap; ADR 0005/0008/0009 carry cross-reference pointers and 0009 carries the admission-bar clause
-  done: false
+  done: true
 - title: CONTEXT.md carries the Rebuild-stable and Deferred value terms
-  done: false
+  done: true
 ---
 
 ## Description
@@ -47,3 +48,9 @@ ADR cross-references, as pointers not rewrites (repo practice is correction note
 CONTEXT.md gains two terms, Rebuild-stable and Deferred value. The Raw entry stays untouched: it describes the public one-arity fn, which still means verbatim.
 
 Testing is node-only per ADR 0015 — every assertion is about our contract, not AG Grid's runtime.
+
+## Notes
+
+**2026-07-29T03:14:24.510613520Z**
+
+Raw implements IEquiv over the wrapped value with = (not identical?), with the tag field participating, so two Raws wrapping equal values are now equal and a rebuilt options map carrying :context (raw m) no longer draws a spurious initial-only warning or churns setGridOption. IHash derives from the tag alone so hashing never routes a wrapped consumer class or callback through goog/getUid. ADR 0021 records the whole rebuild-stability contract including the tagged dispatch landing next, naming with-row-id and the renderer helpers as the open gaps; pointers in ADR 0005/0008, admission-bar clause in ADR 0009, two new CONTEXT.md terms. Node 86/274/0, browser 14/45/0. Commit 7c99833.
