@@ -35,14 +35,14 @@ Not from the wrapped value. The natural `(hash [x tag])` routes a wrapped JS obj
 
 ### 4. Deferred values: an internal tag on `Raw`, constructed at the boundary
 
-This section records the mechanism as decided, not as shipped: `Raw` carries the tag field from the start (it participates in `=`, §2), but the boundary dispatch and its first two users land in agd-01kynwzbcmnt, and the renderer helpers in agd-01kynwzt3a16. See Consequences for what is true today.
+The mechanism below shipped in three steps: the tag field with `Raw` itself (agd-01kynwykcdyg), the boundary dispatch and `with-row-id` (agd-01kynwzbcmnt), the three renderer helpers (agd-01kynwzt3a16). All three are in.
 
 A builder that would mint a closure, or a helper that would mint a class, instead stashes its *input* in a tagged `Raw` and lets the conversion boundary construct the real value. Equal inputs then give `=` options maps, because the comparable thing is the input.
 
 - `Raw` carries an optional internal tag. The `raw?` branch of `->js` dispatches through an internal multimethod whose default is today's plain unwrap; the untagged case stays a direct field read rather than a dispatch, because `->js` runs on every non-raw callback return and that is a hot path.
 - Public `raw` keeps its single arity and its verbatim meaning (`CONTEXT.md`). The tag, the two-arg constructor and the multimethod are internal to `impl`.
 - **Open dispatch, not a `case`**: each helper namespace registers its own construction, so `convert` never has to require `render` or `react`. That matters because `react` is optional precisely so core consumers need not install `react-dom`. Load order is safe by construction — a tagged value can only exist if the namespace that mints it was loaded.
-- **Tag the consumer's input, not the constructed value.** Load-bearing for the renderer helpers: `dom-renderer` and `react-renderer` each build a fresh lifecycle map of three fresh closures over the render fn before delegating to `renderer`, so tagging at the `renderer` level would leave the value non-`=` even with a perfectly stable render fn.
+- **Tag the consumer's input, not the constructed value.** Load-bearing for the renderer helpers: `dom-renderer` and `react-renderer` each build a fresh lifecycle map of fresh closures over the render fn before delegating to `renderer`, so tagging at the `renderer` level would leave the value non-`=` even with a perfectly stable render fn.
 
 Constructing at conversion time rather than call time also means a new class object reaches AG Grid only when the diff actually fired — which is exactly when re-creating cell components is acceptable.
 
@@ -53,10 +53,10 @@ A public fn contributing an option value must produce rebuild-stable output. A h
 ## Consequences
 
 - **`update-grid!` on a whole rebuilt options map is the supported shape**, not a tolerated one. `docs/updating-data.md` §"The options channel" is where the promise and the division of responsibility are documented (agd-01kynwzbcmnt); `docs/framework-composition.md` carries a pointer, since its "not by re-rendering" line is right about rows but reads as forbidding the options pattern blessed here.
-- **What is true today** (the `Raw` half, agd-01kynwykcdyg): the promise holds for `raw` itself, so `:context (ag/raw {...})` and every other raw-valued key survive a rebuild. `->js` still unwraps by a plain field read, nothing mints a tagged `Raw`, and the two remaining bug instances stand: `with-row-id` (agd-01kynwzbcmnt) and the three renderer helpers (agd-01kynwzt3a16). Those are the open gaps, and the docs name them as the caveats until each lands.
-- **The renderer-helper gap is the last one, and the mildest.** `render/renderer`, `render/dom-renderer` and `react/react-renderer` degrade to churn plus a possible column-state reset rather than to a warning, which is why they were split off last. The remaining consumer half after that fix: an inline `(fn [params] ...)` passed to `dom-renderer` during render still churns.
-- **Nothing about the emitted JS changes.** `->js` produces the same output it did before; only `=` and `hash` on `Raw` are new, and deferred construction moves only in *timing*. The `with-row-id` relocation will be held to that standard by leaving its existing tests untouched as the evidence.
-- **`(with-row-id opts (raw f))` will start working.** It takes the non-keyword branch and calls a `Raw` as a function, which raises a `TypeError` on the first row — `Raw` implements no `IFn` — despite the docstring promising raw-wrapped fns receive raw JS params. Routing construction through the tag method fixes the documented idiom as a side effect (agd-01kynwzbcmnt).
+- **The promise holds across the whole public surface**, with no open gaps: `raw` itself, the eight ADR 0009 builders, and the three renderer helpers. `docs/updating-data.md` carries no caveat.
+- **The renderer helpers were the mildest instance, and landed last.** `render/renderer`, `render/dom-renderer` and `react/react-renderer` degraded to churn plus a possible column-state reset rather than to a warning, which is why they were split off. The remaining consumer half: an inline `(fn [params] ...)` passed to `dom-renderer` during render still churns, exactly like an inline callback.
+- **Nothing about the emitted JS changes.** `->js` produces the same output it did before; only `=` and `hash` on `Raw` are new, and deferred construction moves only in *timing*. Both relocations were held to that standard by leaving their existing tests untouched as the evidence.
+- **`(with-row-id opts (raw f))` started working.** It took the non-keyword branch and called a `Raw` as a function, which raised a `TypeError` on the first row — `Raw` implements no `IFn` — despite the docstring promising raw-wrapped fns receive raw JS params. Routing construction through the tag method fixes the documented idiom as a side effect (agd-01kynwzbcmnt).
 - **Testing is node-only** (ADR 0015): every assertion here is about our contract — `=`, `hash`, `setGridOption` call counts against a fake api — not about AG Grid's runtime. The runtime half of the `with-row-id` relocation needs no new browser test either: six existing browser tests already mount real grids with `(with-row-id :id)`.
 - **`CONTEXT.md` gains two terms**, *Rebuild-stable* and *Deferred value*. The **Raw** entry stays as written: it describes the public one-arity fn, which still means verbatim.
 
@@ -77,7 +77,7 @@ A public fn contributing an option value must produce rebuild-stable output. A h
 - ADR 0005 §1-2, §4, §7 — conversion boundary: the no-key-tables law, `raw` as sole escape hatch, the callback-return path that keeps the untagged case a field read
 - ADR 0008 — options diffing (`=` per key, the initial-only warning, the callback-stability guidance this completes from our side)
 - ADR 0009 — builder catalog (the admission bar this adds a clause to)
-- ADR 0011 — renderer tiers (the three helpers in the open gap)
+- ADR 0011 — renderer tiers (the three helpers, whose construction §4 relocates; a correction note there records it)
 - ADR 0012 — no framework adapters in v1 (why rebuild-during-render is the only shape available)
 - ADR 0015 — testing split (why this is node-only)
 - ADR 0018 §4 — literal-key fallback (the lookup law `with-row-id`'s keyword branch follows, preserved across the relocation)

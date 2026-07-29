@@ -40,6 +40,8 @@ No wrapper-level typed-renderer catalog ships. Mantine DataTable precedent: none
 - In `dom-renderer`, string means text, deliberately diverging from the bare-fn tier's `innerHTML` semantics; the divergence is safe because `dom-renderer` is opt-in sugar, not the vanilla path.
 - `react-renderer`'s per-cell roots require explicit unmount wiring in `destroy`; skipping it leaks roots and skips effect cleanups under virtualization churn.
 
+  **Correction, 2026-07-29 (agd-01kynwzt3a16).** "the helpers return a `(raw class)`" and tier 2's "-> component class (`raw`-wrapped)" describe the original construction, not today's. Each helper now returns a *deferred* value holding the consumer's own input, and the conversion boundary builds the class (ADR 0021 §4) — that is what makes two calls with the same input `=`, so a rebuilt options map does not re-apply `:column-defs`. The class still crosses the boundary raw for the `prototype && 'getGui'` reason above; only the timing moved. One tier relationship changes with it: `dom-renderer` no longer *calls* `renderer`, since the lifecycle map is fresh closures per call — it tags the render fn and reaches the same class builder at construction time (same for `react-renderer`).
+
 ## Considered options
 
 - **A mini hiccup->DOM engine vendored in the library** (a ~40-line engine with `:style` maps and `on-*` event fns was built and headless-verified in the skeleton) — cut: dialect trap versus real hiccup, maintenance treadmill, and BYO engines compose at the fn level (pluggable-by-composition beats a global config slot). `dom-renderer` ships engine-free instead.

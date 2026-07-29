@@ -90,19 +90,24 @@ warning.
              :on-cell-clicked  on-cell-clicked)))
 ```
 
-That covers our half. Your own callbacks are yours: an inline
-`(fn [params] ...)` written fresh each render is a genuinely new value, and the
-differ ships it — the right answer for the input it was given. Define handlers
-at namespace level, as `on-cell-clicked` is above. (A stable reference that
-closes over changed state is the case no differ can catch; re-supply it when
-the captured state changes.)
-
-One caveat is open: the renderer helpers — [[ag-grid-cljs.render/renderer]],
+The renderer helpers — [[ag-grid-cljs.render/renderer]],
 [[ag-grid-cljs.render/dom-renderer]] and [[ag-grid-cljs.react/react-renderer]] —
-still build a fresh component class per call, so `:column-defs` carrying one
-re-applies on every rebuild. Nothing breaks; the cost is redundant work and a
-column state that AG Grid preserves on a best-effort basis. Pin `:col-id` on
-your columns if that state matters.
+are in scope too. Each stashes what you passed it and builds the component class
+when the options map crosses the conversion boundary, so `:column-defs` carrying
+a renderer over an unchanged render fn diffs to nothing, and AG Grid sees a new
+class only when the diff genuinely fired:
+
+```clojure
+(ag/with-columns [{:field :salary
+                   :cell-renderer (render/dom-renderer salary-renderer)}])
+```
+
+That covers our half. Your own fns are yours: an inline `(fn [params] ...)` —
+whether a callback or the render fn handed to `dom-renderer` — written fresh each
+render is a genuinely new value, and the differ ships it, the right answer for
+the input it was given. Define them at namespace level and refer to them by name,
+as both snippets above do. (A stable reference that closes over changed state
+is the case no differ can catch; re-supply it when the captured state changes.)
 
 ## Pattern: `set-rows!` from your db
 

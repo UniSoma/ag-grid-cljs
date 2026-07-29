@@ -61,6 +61,20 @@
         inst  (new klass)]
     (is (nil? (.init inst #js {})))))
 
+(deftest construction-defers-to-the-boundary
+  ;; ADR 0021 §4: the helpers stash the consumer's input and the converter builds
+  ;; the class, so a fresh class object reaches AG Grid only when the diff fired.
+  ;; DOM-free: dom-renderer's lifecycle closures touch js/document, but building
+  ;; the class does not.
+  (let [r (render/dom-renderer (fn [p] (str (:value p))))]
+    (testing "the value in the options map is not itself the class"
+      (is (not (fn? r))))
+    (testing "the converted value is a component class, as create-grid! needs"
+      (let [klass (converted-class r)]
+        (is (fn? klass))
+        (is (fn? (.. klass -prototype -getGui)))
+        (is (fn? (.. klass -prototype -refresh)))))))
+
 (deftest refresh-contract
   (testing "absent :refresh -> false (grid re-inits)"
     (let [klass (converted-class

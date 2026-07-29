@@ -6,6 +6,8 @@
   (:require [ag-grid-cljs.core :as grid]
             [ag-grid-cljs.impl.convert :as convert]
             [ag-grid-cljs.impl.validate :as validate]
+            [ag-grid-cljs.react :as react]
+            [ag-grid-cljs.render :as render]
             [cljs.test :refer [deftest is testing]]))
 
 (defn- fake-api
@@ -250,26 +252,37 @@
   [_e]
   nil)
 
+(defn- render-cell
+  "A top-level-def-d render fn: the consumer's half for the renderer helpers.
+  An inline (fn [params] ...) written per render is a genuinely new value."
+  [p]
+  (str (:value p)))
+
+(defn- cell-init [state p] (reset! state (:value p)))
+(defn- cell-gui [state] @state)
+
 (defn- rebuilt-opts
   "An options map rebuilt from scratch by the same fn on every call, the shape a
-  render-driven consumer produces. `:context` and `:get-row-id` are the values
-  that carry the test — both were fresh objects per rebuild before ADR 0021,
-  while the top-level callback and the plain-map `:column-defs` were already =.
-  A renderer joins this fixture with agd-01kynwzt3a16."
+  render-driven consumer produces. `:context`, `:get-row-id` and the
+  `:cell-renderer` are the values that carry the test — all three were fresh
+  objects per rebuild before ADR 0021, while the top-level callback and the
+  plain-map `:column-defs` were already =."
   ([] (rebuilt-opts "ada"))
   ([filter-text]
    (-> (grid/options)
-       (grid/with-columns [{:field :id} {:field :first-name}])
+       (grid/with-columns [{:field :id}
+                           {:field :first-name
+                            :cell-renderer (render/dom-renderer render-cell)}])
        (grid/with-row-id :id)
        (assoc :quick-filter-text filter-text
               :context (grid/raw {:tenant "acme" :roles #{:admin}})
               :on-cell-clicked on-cell-clicked))))
 
-(deftest builder-catalog-is-rebuild-stable
+(deftest builders-and-renderer-helpers-are-rebuild-stable
   ;; ADR 0021 §5 gives ADR 0009's admission bar a second clause: a public fn
   ;; contributing an option value must produce = output for = input. All eight
-  ;; catalog entries, called twice with the same arguments. The renderer helpers
-  ;; (ADR 0011) are the remaining gap — agd-01kynwzt3a16.
+  ;; catalog entries plus the three renderer helpers (ADR 0011), each called
+  ;; twice with the same arguments.
   (let [rows     #js [#js {:id 1}]
         get-rows (fn [_])]
     (doseq [[label build]
@@ -281,7 +294,10 @@
              ["with-selection"           #(grid/with-selection {} {:mode :multiple})]
              ["with-pagination"          #(grid/with-pagination {} {:page-size 25})]
              ["with-cell-selection"      #(grid/with-cell-selection {} {:handle {:mode "fill"}})]
-             ["with-infinite-datasource" #(grid/with-infinite-datasource {} get-rows {:cache-block-size 50})]]]
+             ["with-infinite-datasource" #(grid/with-infinite-datasource {} get-rows {:cache-block-size 50})]
+             ["renderer"                 #(render/renderer {:init cell-init :get-gui cell-gui})]
+             ["dom-renderer"             #(render/dom-renderer render-cell)]
+             ["react-renderer"           #(react/react-renderer render-cell)]]]
       (testing label
         (is (= (build) (build)))))))
 
