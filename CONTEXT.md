@@ -29,7 +29,7 @@ The plain EDN map at the bottom of the API — kebab-case keys, the full AG Grid
 _Avoid_: config, grid spec
 
 **Builder**:
-A pure, `->`-threadable `with-*` function over the options map that coerces input or bundles behavior — never one that merely renames an option.
+A pure, `->`-threadable `with-*` function over the options map that coerces input, bundles behavior, or teaches a contract the reference table cannot express — never one that merely renames an option.
 _Avoid_: setter, option helper
 
 **Key registry**:

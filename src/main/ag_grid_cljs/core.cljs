@@ -69,7 +69,17 @@
   ([] {})
   ([base] (or base {})))
 
-(defn with-columns [opts col-defs]
+(defn with-columns
+  "Sets `:column-defs`. Columns stay plain EDN maps — the whole ColDef surface
+  is reachable directly, and there is no per-column builder.
+
+  A column's `:field` must pair with the spelling of your rows, and it is the
+  pairing that renders: keyword `:field`s emit camelCase and pair with
+  camel-keyed rows, string `:field`s emit their literal name and pair with
+  kebab-keyed rows. Half a pairing renders blank cells — the field check warns
+  when a field misses the sampled row's keys. Both recipes are in \"Options and
+  conversion\"."
+  [opts col-defs]
   (assoc opts :column-defs (vec col-defs)))
 
 (defn with-row-data

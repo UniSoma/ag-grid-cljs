@@ -23,6 +23,8 @@ The bar gains a second clause from ADR 0021: a builder's output must be **rebuil
 
 ### v1 catalog (8 entries) — plain-map assoc sugar, opts-first, returns opts, `->`-threadable, bang-free
 
+> **Entry #2's justification corrected (2026-07-29).** `with-columns` is admitted as a sanctioned exception alongside `with-row-data`, not as a coercion: `(vec col-defs)` normalizes the container but is not load-bearing — `->js` already converts anything `sequential?`, and `(= [x] '(x))`, so it buys neither conversion nor rebuild stability. It earns its keep by teaching the `:field`<->row-spelling pairing, which the reference table cannot express. Membership and the coerce-or-bundle bar are unchanged.
+
 1. `(options)` / `(options base)` — constructor: start an EDN options map.
 2. `with-columns` — coercion: assoc `:column-defs`, vec-coerced.
 3. `with-row-data` — contract anchor: assoc `:row-data`; JS-by-contract, dev-warns on CLJS rows. (Pure assoc, but the sanctioned exception — it teaches the JS-rows contract the reference table can't, and pairs with `set-rows!`.)
