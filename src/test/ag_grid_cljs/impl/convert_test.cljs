@@ -1,7 +1,8 @@
 (ns ag-grid-cljs.impl.convert-test
   "Contract tests for the forward converter (ticket agd-01ky0eck96vn rules)."
   (:require [cljs.test :refer [deftest is testing]]
-            [ag-grid-cljs.impl.convert :as c]))
+            [ag-grid-cljs.impl.convert :as c]
+            [ag-grid-cljs.test-support :refer [capture]]))
 
 (deftest key-transform
   (is (= "rowData" (c/kebab->camel "row-data")))
@@ -174,43 +175,57 @@
   ;; agd-01kygjg6avt2: the row nudge must not name a bare conversion call as a
   ;; recipe (a recipe is a row/field pairing, so the code lives in the article);
   ;; :context is not row data and keeps raw as its answer.
-  (let [warnings  (atom [])
-        orig-warn js/console.warn
-        matching  #(first (filter (fn [w] (re-find % w)) @warnings))]
-    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
-    (try
-      (c/->js {:row-data [{:first-name "Ada"}]
-               :context  {:tenant-id 42}})
-      (let [row-warning (matching #"rowData received")
-            ctx-warning (matching #"context received")]
-        (is (some? row-warning) "a CLJS row collection warns")
-        (is (not (re-find #"clj->js" row-warning))
-            "the row nudge points at the recipes instead of naming a call")
-        (is (re-find #"Options and conversion" row-warning)
-            "the row nudge names where the recipes live")
-        (is (some? ctx-warning) "a CLJS context warns separately")
-        (is (re-find #"raw" ctx-warning)
-            "the context nudge points at raw, its actual answer")
-        (is (not (re-find #"JS by contract" ctx-warning))
-            "context is not row data"))
-      (finally
-        (set! js/console.warn orig-warn)))))
+  (let [w           (capture #(c/->js {:row-data [{:first-name "Ada"}]
+                                       :context  {:tenant-id 42}}))
+        matching    #(first (filter (fn [line] (re-find % line)) w))
+        row-warning (matching #"rowData received")
+        ctx-warning (matching #"context received")]
+    (is (some? row-warning) "a CLJS row collection warns")
+    (is (not (re-find #"clj->js" row-warning))
+        "the row nudge points at the recipes instead of naming a call")
+    (is (re-find #"Options and conversion" row-warning)
+        "the row nudge names where the recipes live")
+    (is (some? ctx-warning) "a CLJS context warns separately")
+    (is (re-find #"raw" ctx-warning)
+        "the context nudge points at raw, its actual answer")
+    (is (not (re-find #"JS by contract" ctx-warning))
+        "context is not row data")))
 
 (deftest renderer-fn-html-string-warning
   ;; decision on agd-01ky0ed8adbf: the bare fn in a *CellRenderer position is
   ;; the vanilla escape hatch (innerHTML semantics) — dev-warn when its string
   ;; return looks like HTML; other fn positions (value-formatter) stay silent.
-  (let [warnings   (atom [])
-        orig-warn  js/console.warn]
-    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
-    (try
-      (let [o (c/->js {:cell-renderer   (fn [_] "<b>hi</b>")
-                       :value-formatter (fn [_] "a < b")})]
-        ((unchecked-get o "cellRenderer") #js {})
-        (is (= 1 (count (filter #(re-find #"HTML-looking" %) @warnings)))
-            "cellRenderer fn string return with < warns")
-        ((unchecked-get o "valueFormatter") #js {})
-        (is (= 1 (count (filter #(re-find #"HTML-looking" %) @warnings)))
-            "value-formatter string return never warns"))
-      (finally
-        (set! js/console.warn orig-warn)))))
+  ;; Conversion itself is silent for both keys, so each call gets its own capture.
+  (let [o (c/->js {:cell-renderer   (fn [_] "<b>hi</b>")
+                   :value-formatter (fn [_] "a < b")})]
+    (is (= 1 (count (capture #((unchecked-get o "cellRenderer") #js {}))))
+        "cellRenderer fn string return with < warns")
+    (is (empty? (capture #((unchecked-get o "valueFormatter") #js {})))
+        "value-formatter string return never warns")))
+
+(deftest renderer-html-warning-is-bounded
+  ;; agd-01kyqy2y8c7m / ADR 0022 §4. The nudge fires from inside the wrapped
+  ;; renderer, so before it had a period it warned on EVERY cell render — the
+  ;; live defect this ticket exists for. A grid scrolling 10k rows produced 10k
+  ;; identical console lines.
+  (let [w (capture
+           (fn []
+             (let [r (unchecked-get (c/->js {:cell-renderer (fn [_] "<b>hi</b>")}) "cellRenderer")]
+               (dotimes [_ 500] (r #js {})))
+             ;; The consumer's closure is fresh every render (ADR 0021 leaves those
+             ;; to the consumer), so keying the dedup on the fn would have dedup'd
+             ;; nothing for exactly the rebuild-per-render shape ADR 0021 supports.
+             (dotimes [_ 20]
+               (let [r (unchecked-get (c/->js {:cell-renderer (fn [_] "<b>hi</b>")}) "cellRenderer")]
+                 (r #js {})))))]
+    (is (= 1 (count (filter #(re-find #"HTML-looking" %) w)))
+        "500 renders of one renderer plus 20 rebuilds with fresh closures, one warning")))
+
+(deftest cljs-collection-warning-is-per-prop
+  ;; ADR 0022 §1/§3: the discriminator is the prop, so rowData and context each
+  ;; get their own line but neither repeats across a rebuilt map.
+  (let [w     (capture #(dotimes [_ 50]
+                          (c/->js {:row-data [{:first-name "Ada"}] :context {:tenant-id 42}})))
+        lines #(count (filter (fn [line] (re-find % line)) w))]
+    (is (= 1 (lines #"rowData received")) "50 conversions, one row warning")
+    (is (= 1 (lines #"context received")) "50 conversions, one context warning")))

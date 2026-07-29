@@ -18,8 +18,10 @@
 
 ;; `:tab-index` is `:initial? true` in our registry AND present in AG Grid's
 ;; INITIAL_GRID_OPTION_KEYS, so both halves below exercise the same key. It is
-;; used nowhere else in the suite: _warn(22) goes through _warnOnce, which
-;; dedupes per message for the whole page.
+;; used nowhere else in the suite, and now for two reasons: _warn(22) goes through
+;; _warnOnce, which dedupes per message for the whole page, and our own
+;; :initial-only warning dedupes per process too (ADR 0022 §1), so a second user
+;; of this key would silence the positive control below.
 (def ^:private ag-initial-warning
   #"tabIndex is an initial property and cannot be updated")
 

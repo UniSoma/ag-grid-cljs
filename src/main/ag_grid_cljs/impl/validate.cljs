@@ -31,36 +31,23 @@
   :advanced compilation with {goog.DEBUG false} dead-code-eliminates it
   (ADR 0007 §1)."
   (:require [ag-grid-cljs.impl.convert :as convert]
-            [ag-grid-cljs.impl.registry :as reg]))
+            [ag-grid-cljs.impl.registry :as reg]
+            [ag-grid-cljs.impl.warn :as warn]))
 
 ;; --- dev-only state ---------------------------------------------------------
 
 (defonce ^:private enabled? (atom false))
-
-;; Deduped signatures: #{[object-name kebab-key] ...}. One warning per pair.
-(defonce ^:private warned (atom #{}))
 
 (defn enable!
   "Turn the wrapper's dev validations on. No-op in production builds."
   []
   (when ^boolean goog.DEBUG (reset! enabled? true)))
 
-(defn reset-warnings!
-  "Clear the dedup set (test helper)."
-  []
-  (reset! warned #{}))
-
 (defn disable!
   "Turn the dev validations back off (test helper). enable! has no other
   counterpart, and the always-on checks are only observable with the gate down."
   []
   (reset! enabled? false))
-
-(defn- warn-once! [object-name k msg]
-  (let [sig [object-name k]]
-    (when-not (contains? @warned sig)
-      (swap! warned conj sig)
-      (js/console.warn (str "[ag-grid-cljs] " msg)))))
 
 ;; --- did-you-mean -----------------------------------------------------------
 
@@ -132,17 +119,18 @@
 ;; --- key checks -------------------------------------------------------------
 
 (defn- check-key!
-  "Warn on one unknown key. `object-name` labels the position (and scopes
-  dedup). String keys and namespaced keywords are user-literal and skipped
-  (conversion rule: string = verbatim)."
+  "Warn on one unknown key. `object-name` labels the position, and pairs with the
+  key as the warning's discriminator: the same typo in a column and in the grid
+  options are two different mistakes. String keys and namespaced keywords are
+  user-literal and skipped (conversion rule: string = verbatim)."
   [object-name {:keys [camels kebabs]} k]
   (when (and (keyword? k) (nil? (namespace k)))
     (let [prop (convert/kebab->camel (name k))]
       (when-not (contains? camels prop)
         (let [sug (suggest (name k) kebabs)]
-          (warn-once! object-name k
-                      (str "unknown " object-name " option " k
-                           (when sug (str " — did you mean " sug "?")))))))))
+          (warn/warn-once! ::unknown-key [object-name k]
+                           "unknown " object-name " option " k
+                           (when sug (str " — did you mean " sug "?"))))))))
 
 (defn- check-map! [object-name spec m]
   (doseq [k (keys m)] (check-key! object-name spec k)))
@@ -187,15 +175,18 @@
 
 (defn- check-class-rule-keys!
   "Warn once per renamed key in one class-rules map. `option` is the owning
-  option keyword, which also scopes dedup."
+  option keyword; it pairs with the class key as the discriminator. Once
+  per class key, not per column — the column is deliberately not named, since
+  naming it would put it in the key and one typo across ten columns would warn
+  ten times (ADR 0019 §5)."
   [option m]
   (when (map? m)
     (doseq [k (keys m) :when (renamed-key? k)]
-      (warn-once! option k
-                  (str option " key " k " emits the CSS class \""
+      (warn/warn-once! ::class-rule-key [option k]
+                       option " key " k " emits the CSS class \""
                        (convert/kebab->camel (name k))
                        "\" — CSS class names are strings, not AG Grid"
-                       " vocabulary. Write \"" (name k) "\".")))))
+                       " vocabulary. Write \"" (name k) "\"."))))
 
 (declare check-col-defs!)
 
@@ -300,19 +291,26 @@
 
   Presence is deliberately asymmetric with the suggestion pool: `in` walks the
   prototype chain, so class instances with prototype getters stay quiet, while
-  `js-keys` does not, so \"toString\" is never suggested."
+  `js-keys` does not, so \"toString\" is never suggested.
+
+  Emits with `warn!`, not `warn-once!`: `state` is not a dedup set and cannot be
+  one. It holds resolved fields — conj'd for every unresolved target, including
+  those found PRESENT — because it is also the short-circuit that keeps
+  `run-field-check!` off `forEachNode` on every `modelUpdated` and
+  `newColumnsLoaded`, and `newColumnsLoaded` fires on sort and resize. A
+  `warn-once!` owning it would conj only on warn, leaving present fields
+  permanently unresolved and re-walking the row model on every sort (ADR 0022 §7)."
   [state targets row]
   (when (js-object? row)
     (doseq [{:keys [kind field row-key] :as target} targets
             :when (unresolved? state target)]
       (swap! state conj field)
       (when-not (js-in row-key row)
-        (js/console.warn
-         (str "[ag-grid-cljs] column "
-              (if (= :tooltip-field kind) "tooltip field" "field") " "
-              (pr-str field) " is not a key in the row data"
-              (when-let [sug (closest row-key (js-keys row))]
-                (str " — did you mean " (pr-str sug) "?"))))))))
+        (warn/warn! "column "
+                    (if (= :tooltip-field kind) "tooltip field" "field") " "
+                    (pr-str field) " is not a key in the row data"
+                    (when-let [sug (closest row-key (js-keys row))]
+                      (str " — did you mean " (pr-str sug) "?")))))))
 
 (defn- run-field-check!
   "One pass over the live grid. `getColumns` returns null until colModel.ready;

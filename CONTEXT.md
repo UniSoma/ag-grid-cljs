@@ -48,6 +48,10 @@ _Avoid_: linting, schema check
 The always-on dev diagnostic comparing each column's emitted field string against the keys of a sampled row, warning once per field with a did-you-mean. Registry-free — it compares two consumer-supplied things — so it needs no opt-in.
 _Avoid_: field validation, column validation
 
+**Warning period**:
+How often a given dev warning repeats. A warning about what the consumer *wrote* — an unknown key, a keyword where a string was meant, two conflicting builder options — is true for the life of the process, so it fires once. A warning about a *relationship between live things* — this column's field against this grid's rows — can be true for one grid and false for the next, so it fires once per grid (ADR 0022).
+_Avoid_: dedup, warn-once
+
 **Callback bean**:
 The lazy view a wrapped callback receives over each JS object argument and recursively reached object, resolving keyword lookups without converting the underlying value.
 _Avoid_: params bean, row bean, data bean

@@ -4,6 +4,7 @@
   (:require [ag-grid-cljs.impl.convert :as convert]
             [ag-grid-cljs.impl.validate :as validate]
             [ag-grid-cljs.impl.registry :as reg]
+            [ag-grid-cljs.impl.warn :as warn]
             ["ag-grid-community" :refer [createGrid ModuleRegistry ValidationModule]]))
 
 (def raw
@@ -195,10 +196,13 @@
           (with-pagination {:page-size 25 :page-size-selector [25 50 100]}))"
   ([opts] (with-pagination opts {}))
   ([opts {:keys [page-size page-size-selector auto-page-size]}]
-   (when (and ^boolean goog.DEBUG auto-page-size (some? page-size))
-     (js/console.warn
-      (str "[ag-grid-cljs] with-pagination: :auto-page-size and :page-size are "
-           "mutually exclusive; :page-size dropped (AG Grid auto-sizes each page).")))
+   ;; Once per process (ADR 0022 §1): a builder runs on every render for a
+   ;; consumer who rebuilds the options map, which ADR 0021 exists to support.
+   ;; Nothing varies between firings, so the discriminator is nil.
+   (when (and auto-page-size (some? page-size))
+     (warn/warn-once! ::pagination-conflict nil
+                      "with-pagination: :auto-page-size and :page-size are "
+                      "mutually exclusive; :page-size dropped (AG Grid auto-sizes each page)."))
    (cond-> (assoc opts :pagination true)
      auto-page-size                       (assoc :pagination-auto-page-size true)
      (and page-size (not auto-page-size)) (assoc :pagination-page-size page-size)
@@ -247,7 +251,7 @@
 
 ;; --- mount ------------------------------------------------------------------
 
-(defrecord GridHandle [api opts warned])
+(defrecord GridHandle [api opts])
 
 (defn create-grid!
   "Convert the EDN options map and mount AG Grid on `el`, returning a GridHandle
@@ -258,8 +262,7 @@
 
   The stashed `:opts` is the unconverted EDN, so later `update-grid!` diffs
   compare EDN to EDN; reach the raw GridApi with `grid-api` for anything the
-  wrapper does not cover. (The handle also carries an internal per-handle set of
-  keys already dev-warned by `update-grid!` — not part of the public shape.)
+  wrapper does not cover.
 
   In `goog.DEBUG` builds this also registers AG Grid's own `ValidationModule`
   once, before the first grid — so type, option-dependency, row-model and
@@ -286,7 +289,7 @@
     ;; 0017). It can only be installed here: addEventListener is unreachable
     ;; until createGrid returns, so install-field-check! also runs once itself.
     (when ^boolean goog.DEBUG (validate/install-field-check! api))
-    (->GridHandle api opts (atom #{}))))
+    (->GridHandle api opts)))
 
 (defn enable-dev-validations!
   "Turn on the wrapper's dev-mode option validation: unknown top-level and
@@ -304,6 +307,25 @@
   row-model and deprecation warnings (ADR 0020)."
   []
   (when ^boolean goog.DEBUG (validate/enable!)))
+
+(defn reset-dev-warnings!
+  "Let every dev warning that fires once per process fire again (ADR 0022 §1).
+  No-op in production builds.
+
+  A warning about what you WROTE — an unknown key, an initial-only key in an
+  `update-grid!` patch, a keyword class-rule key — fires once per process, and the
+  set that remembers it survives a hot reload. So re-introducing a mistake you
+  just fixed is otherwise met with silence. Call this from a `^:dev/after-load`
+  hook to get re-firing back:
+
+      (defn ^:dev/after-load reload! []
+        (ag-grid-cljs.core/reset-dev-warnings!)
+        ...)
+
+  The field check is unaffected: its warning is about this grid's rows, so it is
+  per grid and a reload recreates the grid anyway (ADR 0022 §7)."
+  []
+  (warn/reset-warnings!))
 
 (defn grid-api
   "Return the raw AG Grid GridApi held by `handle` — the escape hatch
@@ -345,16 +367,6 @@
   (.applyTransaction ^js (:api handle) (convert/->js tx)))
 
 ;; --- declarative update channel (ADR 0008) ----------------------------------
-
-(defn- warn-once!
-  "Dev-only, deduped console warning. `warned` is the handle's atom holding the
-  set of keys already warned; each key warns at most once per handle. No-op in
-  production builds (goog.DEBUG false), so `warned` never grows there."
-  [warned k msg]
-  (when ^boolean goog.DEBUG
-    (when-not (contains? @warned k)
-      (swap! warned conj k)
-      (js/console.warn (str "[ag-grid-cljs] " msg)))))
 
 (defn- apply-opt!
   "Push one changed grid option onto `api` via setGridOption. The value is
@@ -416,14 +428,18 @@
   ;; Checked on the PATCH: neither class-rules key is :initial? and :column-defs
   ;; is an ordinary updatable key, so both can first appear here (ADR 0019).
   (when ^boolean goog.DEBUG (validate/check-class-rules! new-opts))
-  (let [{:keys [api opts warned]} handle]
+  ;; Every warning below is about what the consumer WROTE in this patch, so the
+  ;; period is once per process, keyed by the key that was wrong (ADR 0022 §1, §5).
+  ;; The loop has no outer goog.DEBUG guard — impl.warn's variadic message is what
+  ;; keeps a production build from assembling strings it then discards.
+  (let [{:keys [api opts]} handle]
     (doseq [k (keys new-opts)]
       (let [new-val (get new-opts k)]
         (when (not= (get opts k) new-val)
           (if (= k :row-data)
-            (warn-once! warned k
-                        (str ":row-data is owned by the data channel and ignored "
-                             "by update-grid!; use set-rows! or transact! (ADR 0004)"))
+            (warn/warn-once! ::row-data-ignored k
+                             ":row-data is owned by the data channel and ignored "
+                             "by update-grid!; use set-rows! or transact! (ADR 0004)")
             (case (classify k)
               :updatable    (apply-opt! api k new-val)
               ;; This message is NOT redundant with AG Grid's own "{key} is an
@@ -436,11 +452,11 @@
               ;; ValidationModule (ADR 0020) does not change that — reachability,
               ;; not gating, is the reason (ADR 0017 appendix; browser suite
               ;; ag-grid-cljs.browser.initial-only-test pins the upstream half).
-              :initial-only (warn-once! warned k
-                                        (str "grid option " k " is initial-only and cannot change "
-                                             "after creation; update-grid! ignored it"))
+              :initial-only (warn/warn-once! ::initial-only k
+                                             "grid option " k " is initial-only and cannot change "
+                                             "after creation; update-grid! ignored it")
               :unclassified (do (apply-opt! api k new-val)
-                                (warn-once! warned k
-                                            (str "grid option " k " is not in the key registry; "
-                                                 "update-grid! applied it optimistically"))))))))
+                                (warn/warn-once! ::unclassified k
+                                                 "grid option " k " is not in the key registry; "
+                                                 "update-grid! applied it optimistically")))))))
     (assoc handle :opts (merge opts new-opts))))

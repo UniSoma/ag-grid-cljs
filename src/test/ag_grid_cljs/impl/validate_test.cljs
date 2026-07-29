@@ -3,24 +3,12 @@
   goog.DEBUG is true under the node-test compile, so the guarded code runs."
   (:require [cljs.test :refer [deftest is testing use-fixtures]]
             [ag-grid-cljs.impl.convert :as c]
-            [ag-grid-cljs.impl.validate :as v]))
-
-;; --- warn capture -----------------------------------------------------------
-
-(def ^:dynamic *warnings* nil)
-
-(defn capture
-  "Run f with js/console.warn captured; return the vector of warning strings."
-  [f]
-  (let [warnings (atom [])
-        orig js/console.warn]
-    (v/reset-warnings!)
-    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
-    (try (f) (finally (set! js/console.warn orig)))
-    @warnings))
+            [ag-grid-cljs.impl.validate :as v]
+            [ag-grid-cljs.impl.warn :as warn]
+            [ag-grid-cljs.test-support :refer [capture]]))
 
 (use-fixtures :each
-  {:before (fn [] (v/enable!) (v/reset-warnings!))})
+  {:before (fn [] (v/enable!) (warn/reset-warnings!))})
 
 (defn warns-for [opts]
   (capture #(v/validate-options! opts)))

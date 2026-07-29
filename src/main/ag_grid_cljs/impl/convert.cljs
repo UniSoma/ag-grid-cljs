@@ -3,7 +3,8 @@
   (ticket agd-01ky0eck96vn). Walking-skeleton cut: namespace layout and
   naming are provisional until the namespace-layout decision lands."
   (:require [clojure.string :as str]
-            [ag-grid-cljs.impl.bean :as bean]))
+            [ag-grid-cljs.impl.bean :as bean]
+            [ag-grid-cljs.impl.warn :as warn]))
 
 ;; --- key transforms ---------------------------------------------------------
 
@@ -46,10 +47,9 @@
     (str/lower-case (str/replace s #"([a-z0-9])([A-Z])" "$1-$2"))))
 
 ;; --- dev warnings -----------------------------------------------------------
-
-(defn- warn [& msg]
-  (when ^boolean goog.DEBUG
-    (js/console.warn (apply str "[ag-grid-cljs] " msg))))
+;; Every warning here is a statement about what the consumer WROTE, so all of
+;; them are once per process (ADR 0022 §1). The prefix, the goog.DEBUG gate and
+;; the dedup set live in impl.warn; this namespace only names its checks.
 
 (def ^:private row-props
   ;; JS-by-contract nudge (contract rule 5)
@@ -66,12 +66,14 @@
   context does convert, just lossily."
   [prop]
   (if (contains? row-props prop)
-    (warn prop " received a CLJS collection; row data is JS by contract — "
-          "pass a JS array of JS objects. See \"Options and conversion\" for "
-          "the two CLJS→JS row recipes.")
-    (warn prop " received a CLJS collection; it converts through the boundary "
-          "(keys camelize, keyword values become strings). Wrap with raw to "
-          "get the CLJS value back unchanged in callbacks.")))
+    (warn/warn-once! ::cljs-collection prop
+                     prop " received a CLJS collection; row data is JS by contract — "
+                     "pass a JS array of JS objects. See \"Options and conversion\" for "
+                     "the two CLJS→JS row recipes.")
+    (warn/warn-once! ::cljs-collection prop
+                     prop " received a CLJS collection; it converts through the boundary "
+                     "(keys camelize, keyword values become strings). Wrap with raw to "
+                     "get the CLJS value back unchanged in callbacks.")))
 
 ;; --- raw escape hatch -------------------------------------------------------
 
@@ -288,11 +290,17 @@
   (let [wrapped (wrap-fn f)]
     (fn [& args]
       (let [ret (apply wrapped args)]
+        ;; nil discriminator, so once per process (ADR 0022 §4). The fn is a
+        ;; fresh closure per render for exactly the consumers ADR 0021 designed
+        ;; for; the return string would grow the set with row data; the column is
+        ;; deliberately not named, per ADR 0019 §5. Nothing left to key on — and
+        ;; the message names no column, so a second firing is a duplicate string.
         (when (and ^boolean goog.DEBUG (string? ret) (str/includes? ret "<"))
-          (warn "cell renderer fn returned an HTML-looking string; AG Grid "
-                "injects it via innerHTML (XSS risk with untrusted data). "
-                "Return a DOM node, or use the renderer helpers for "
-                "string-means-text semantics."))
+          (warn/warn-once! ::renderer-html nil
+                           "cell renderer fn returned an HTML-looking string; AG Grid "
+                           "injects it via innerHTML (XSS risk with untrusted data). "
+                           "Return a DOM node, or use the renderer helpers for "
+                           "string-means-text semantics."))
         ret))))
 
 (defn- renderer-prop? [prop]
@@ -300,7 +308,8 @@
 
 (defn- key->prop [k]
   (when (namespace k)
-    (warn "namespaced keyword " k " converts by name only; namespace dropped"))
+    (warn/warn-once! ::namespaced-keyword k
+                     "namespaced keyword " k " converts by name only; namespace dropped"))
   (kebab->camel (name k)))
 
 (defn- map->js [m]
@@ -309,8 +318,13 @@
      (let [prop (cond
                   (keyword? k) (key->prop k)
                   (string? k)  k
-                  :else        (do (warn "non-keyword/string map key " (pr-str k) " stringified")
-                                   (str k)))]
+                  ;; Discriminated by the printed key, not the key: it may be a
+                  ;; JS object or a fn, which would dedup by identity and so
+                  ;; never dedup at all across a rebuilt map.
+                  :else        (let [s (pr-str k)]
+                                 (warn/warn-once! ::non-keyword-key s
+                                                  "non-keyword/string map key " s " stringified")
+                                 (str k)))]
        (when (and (contains? data-carrying-props prop)
                   (coll? v) (not (raw? v)))
          (warn-cljs-collection prop))
@@ -335,10 +349,14 @@
                         (.-x ^Raw x)
                         (construct tag (.-x ^Raw x))))
     (map? x)        (map->js x)
+    ;; Same site and discriminator as key->prop's: one message, so a keyword that
+    ;; appears in both a key and a value position warns once, not twice.
     (keyword? x)    (do (when (namespace x)
-                          (warn "namespaced keyword " x " converts by name only; namespace dropped"))
+                          (warn/warn-once! ::namespaced-keyword x
+                                           "namespaced keyword " x " converts by name only; namespace dropped"))
                         (kebab->camel (name x)))
-    (set? x)        (do (warn "CLJS set passed through unconverted (did you mean a vector?)")
+    (set? x)        (do (warn/warn-once! ::set-passthrough nil
+                                         "CLJS set passed through unconverted (did you mean a vector?)")
                         x)
     (sequential? x) (let [a #js []]
                       (doseq [v x] (.push a (->js v)))

@@ -68,6 +68,8 @@ Lives in `impl.validate`, not `impl.convert`, though `convert`'s existing data-c
 - **Warns only when conversion changes the name** — a `-` in the key's name, or a namespace. Never on `:warning`, never on `"row-warning"`. Single-word CSS class names are common, so warning on every keyword key would fire routinely on working code. The general rule is taught in `docs/options-and-conversion.md` instead, where it costs nobody a console line.
 - **Deduped** through the existing `warn-once!` on `[:row-class-rules :row-warning]` — the option keyword in the slot where other checks pass strings, so the shared set cannot collide. Once per class key, not per column; the column is deliberately not named, since naming it would force it into the dedup key and one typo across ten columns would warn ten times.
 
+> **Superseded in part by ADR 0022 (2026-07-29).** The two placement clauses above that rest on `validate` owning the mechanism are retired: the set moved to `impl.warn`, and the key space is `[site discriminator]`, so the keyword-in-a-string-slot sidestep is no longer load-bearing and the check is an ordinary `warn-once!` call on `[::class-rule-key [option k]]`. §5's four other reasons for the placement, and the once-per-class-key-not-per-column rule, are unchanged.
+
 ### 6. The reference check is drift-free, and therefore also always on
 
 Designed here, built under agd-01kymfv9sh68. It carries **no list of AG Grid's built-in names**. It warns only when an unresolved citation is a **near-match against one of the consumer's own registrations** — `:agg-func "my-total"` against a registered `"myTotal"` — reusing `validate`'s existing `levenshtein`/`suggest`. A genuine built-in the consumer never registered has no near-match and stays silent.

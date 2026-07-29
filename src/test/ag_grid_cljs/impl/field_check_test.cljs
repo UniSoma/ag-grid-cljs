@@ -6,18 +6,8 @@
   are about AG Grid itself. Deliberately never calls enable-dev-validations! —
   the field check is not behind that gate."
   (:require [cljs.test :refer [deftest is testing]]
-            [ag-grid-cljs.impl.validate :as v]))
-
-;; --- warn capture -----------------------------------------------------------
-
-(defn capture
-  "Run f with js/console.warn captured; return the vector of warning strings."
-  [f]
-  (let [warnings (atom [])
-        orig js/console.warn]
-    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
-    (try (f) (finally (set! js/console.warn orig)))
-    @warnings))
+            [ag-grid-cljs.impl.validate :as v]
+            [ag-grid-cljs.test-support :refer [capture]]))
 
 ;; --- fakes ------------------------------------------------------------------
 

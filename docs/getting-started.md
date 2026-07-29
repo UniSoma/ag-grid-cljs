@@ -109,6 +109,12 @@ AG Grid's own checks — deprecations, types, option dependencies, row models �
 need no call from you: `create-grid!` registers `ValidationModule` for you in dev
 builds, and registers nothing in production.
 
+A warning about something you *wrote* — an unknown key, an initial-only key in an
+`update-grid!` patch, a keyword class-rule key — fires **once per process**, since
+the text does not change while the page lives. That set survives a hot reload, so
+if you want a just-reintroduced mistake to warn again, clear it from a
+`^:dev/after-load` hook with [[ag-grid-cljs.core/reset-dev-warnings!]].
+
 The **field check** needs no call either — it is on in every dev build. When a
 column's `:field` or `:tooltip-field` names a key your row data does not have
 (the blank-column bug, which AG Grid itself reports nowhere), it warns once with

@@ -5,9 +5,10 @@
   accessor and channels dispatch onto it."
   (:require [ag-grid-cljs.core :as grid]
             [ag-grid-cljs.impl.convert :as convert]
-            [ag-grid-cljs.impl.validate :as validate]
+            [ag-grid-cljs.impl.warn :as warn]
             [ag-grid-cljs.react :as react]
             [ag-grid-cljs.render :as render]
+            [ag-grid-cljs.test-support :refer [capture]]
             [cljs.test :refer [deftest is testing]]))
 
 (defn- fake-api
@@ -25,25 +26,29 @@
 (defn- handle
   "A GridHandle over a fresh fake api with the given stashed EDN opts."
   ([] (handle {}))
-  ([opts] (grid/->GridHandle (fake-api) opts (atom #{}))))
+  ([opts] (grid/->GridHandle (fake-api) opts)))
 
 (defn- set-grid-option-calls [h]
   (filterv (fn [[m]] (= m :set-grid-option)) (calls-of (grid/grid-api h))))
 
-(defn- capture
-  "Run f with js/console.warn captured; return the vector of warning strings."
-  [f]
-  (let [warnings (atom [])
-        orig js/console.warn]
-    (set! js/console.warn (fn [& args] (swap! warnings conj (apply str args))))
-    (try (f) (finally (set! js/console.warn orig)))
-    @warnings))
-
 (deftest grid-api-accessor
   (testing "grid-api pulls the raw GridApi back out of the handle"
     (let [api (fake-api)
-          h   (grid/->GridHandle api {:column-defs []} (atom #{}))]
+          h   (grid/->GridHandle api {:column-defs []})]
       (is (identical? api (grid/grid-api h))))))
+
+(deftest handle-is-a-comparable-value
+  ;; ADR 0022 §5: the handle holds no atom, so two handles over the same grid and
+  ;; the same applied opts are =. Load-bearing for the reference-consumer bar —
+  ;; Fulcro consumers put the handle in app state, which diffs by =.
+  (let [api (fake-api)]
+    (is (= {:api api :opts {:pagination true}}
+           (into {} (grid/->GridHandle api {:pagination true})))
+        "the handle carries the documented two fields and nothing else")
+    (is (= (grid/->GridHandle api {:pagination true})
+           (grid/->GridHandle api {:pagination true})))
+    (is (not= (grid/->GridHandle api {:pagination true})
+              (grid/->GridHandle api {:pagination false})))))
 
 (deftest set-rows!-targets-the-handle
   (let [h    (handle)
@@ -94,6 +99,17 @@
     (is (= 1 (count w)) "warns once per key across successive updates")
     (is (re-find #":context is initial-only" (first w)))))
 
+(deftest update-grid!-initial-only-warns-once-per-process-not-per-handle
+  ;; ADR 0022 §5: the warning is a statement about what the consumer WROTE, not
+  ;; about this grid, so the period is per process. A consumer with two grids
+  ;; making the same mistake sees one line, and the handle needs no atom to hold
+  ;; the set — which is what makes it a comparable value.
+  (let [w (capture #(do (grid/update-grid! (handle {:context {:a 1}}) {:context {:a 2}})
+                        (grid/update-grid! (handle {:context {:a 1}}) {:context {:a 2}})))]
+    (is (= 1 (count w)) "two handles, same initial-only key, one warning")
+    (is (contains? (warn/fired) [::grid/initial-only :context])
+        "the check that fired is readable as a pair, without a regex over prose")))
+
 (deftest update-grid!-row-data-warns-and-is-ignored
   (let [h (handle {})
         w (capture #(grid/update-grid! h {:row-data #js [#js {:id 1}]}))]
@@ -121,7 +137,6 @@
 (deftest update-grid!-checks-class-rule-keys-on-the-patch
   ;; :column-defs is an ordinary updatable key, so class rules can first arrive
   ;; at update; update-grid! ran no validation before ADR 0019.
-  (validate/reset-warnings!)
   (let [h (handle {:column-defs [{:field :a}]})
         w (capture #(grid/update-grid!
                      h {:column-defs [{:field :a
@@ -218,7 +233,14 @@
       (is (= 1 (count w)))
       (is (re-find #"mutually exclusive" (first w)))))
   (testing "auto-page-size alone does not warn"
-    (is (= [] (capture #(grid/with-pagination {} {:auto-page-size true}))))))
+    (is (= [] (capture #(grid/with-pagination {} {:auto-page-size true})))))
+  (testing "the conflict warning is bounded across a rebuilt options map"
+    ;; agd-01kyqy2y8c7m / ADR 0022 §1. Builders run on every render for a
+    ;; consumer who rebuilds the whole map — the shape ADR 0021 exists to
+    ;; support — so before this warning had a period it fired per render.
+    (let [w (capture #(dotimes [_ 200]
+                        (grid/with-pagination {} {:auto-page-size true :page-size 25})))]
+      (is (= 1 (count w)) "200 builder calls, one warning"))))
 
 (deftest with-infinite-datasource-bundles-row-model-and-datasource
   (testing "row-model-type + datasource are set; cache sizing is optional"
