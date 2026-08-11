@@ -6,7 +6,14 @@
   Mounts a local React root per cell (createRoot in init, unmount in
   destroy). renders go through flushSync so the cell has content
   synchronously when AG Grid attaches it — createRoot renders are async by
-  default and would flash empty cells."
+  default and would flash empty cells.
+
+  unmount is deferred one microtask: a synchronous unmount inside a React
+  commit (the typical React host destroys grids from a useEffect cleanup)
+  trips React's DEV synchronous-unmount error once per live cell, and React
+  defers the actual deletion there anyway. Consequently a cell component's
+  effect cleanups run after the grid is destroyed, for every caller — do not
+  touch the grid api from a cleanup."
   (:require [ag-grid-cljs.impl.convert :as convert]
             ;; required for its :renderer construct method, the class builder
             [ag-grid-cljs.render]
@@ -23,7 +30,13 @@
    :refresh (fn [state params]
               (flushSync #(.render (:root @state) (render-fn params)))
               true)
-   :destroy (fn [state] (.unmount (:root @state)))})
+   ;; deferred so a destroy inside a React commit doesn't warn (ns docstring);
+   ;; double-unmount is a no-op, so a late microtask racing a re-destroy is safe
+   ;; deferred so a destroy inside a React commit doesn't warn (ns docstring);
+   ;; double-unmount is a no-op, so a late microtask racing a re-destroy is safe
+   :destroy (fn [state]
+              (when-let [root (:root @state)]
+                (js/queueMicrotask #(.unmount root))))})
 
 ;; This namespace owns its own construction tag, so `convert` never requires
 ;; `react` — that is what keeps react-dom off the classpath of consumers who
