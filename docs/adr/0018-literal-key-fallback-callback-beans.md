@@ -2,6 +2,7 @@
 
 - Status: accepted, 2026-07-27
 - Origin: knot ticket agd-01kygja77mxj (tickets are ephemeral; this record is self-contained)
+- Amended 2026-08-11 (agd-01kzs8dexkb1): §2 names the `object?` gate — the law never covered `RowNode`/`Column`/`GridApi` arguments; Context, §9, Consequences, Verification and one Considered option de-overclaimed to match
 
 Callback beans gain a **literal-key fallback**. For every auto-beaned JS object, a keyword lookup uses its camelized property when that property is present and otherwise uses the keyword's literal name. The decision is object-local and deterministic: no row-shape inference, per-grid gate, `WeakMap`, registry, or callback-order dependence. Camel keeps priority, so existing AG Grid vocabulary and camel-keyed data retain their current meaning.
 
@@ -13,7 +14,7 @@ That rule makes kebab-keyed consumer data unreachable. `clj->js` keys objects wi
 
 Rendering is a separate concern. `{:field :first-name}` emits `"firstName"`, while `{:field "first-name"}` emits the consumer's string verbatim. A kebab-keyed row therefore needs a string field to render. Fixing callback lookup must not silently rewrite row data or column fields.
 
-The callback surface is broader than `params.data`. `wrap-fn` beans every object argument. AG Grid also invokes callbacks with row data directly (`getDataPath`, `isRowMaster`, `getServerSideGroupKey`), with a `RowNode` (`isRowSelectable`, `doesExternalFilterPass`), and with arbitrary object cell values (`equals`, comparators). A rule scoped to `params.data` cannot cover the interface the wrapper actually exposes.
+The callback surface is broader than `params.data`. `wrap-fn` beans every plain-object argument. AG Grid also invokes callbacks with row data directly (`getDataPath`, `isRowMaster`, `getServerSideGroupKey`) and with arbitrary object cell values (`equals`, comparators). A rule scoped to `params.data` cannot cover the interface the wrapper actually exposes. Callbacks invoked with a `RowNode` (`isRowSelectable`, `doesExternalFilterPass`) sit outside that surface: `RowNode` is a class, so those arguments are never beaned (§2).
 
 Three invariants drive the decision:
 
@@ -38,7 +39,11 @@ cljs-bean also implements ordinary collection update protocols, but callback bea
 
    This is a lookup law. It covers keyword reads and lookup-like operations over the bean interface, such as `get`, invocation, `contains?`, and `find`. It does not define write semantics for persistent or transient collection operations.
 
-2. **Apply the law to the whole callback-bean tree.** `params-bean` starts an object-aware bean at the root, and its `:transform` creates another object-aware bean for each recursively reached object. Arrays remain lazy vectors whose object elements receive the same treatment. This covers params, `params.data`, `params.node.data`, direct row arguments, `RowNode` arguments, custom params, and object cell values without classifying them.
+2. **Apply the law to the whole callback-bean tree, which is the plain-object tree.** `params-bean` starts an object-aware bean at the root, and its `:transform` creates another object-aware bean for each recursively reached object. Arrays remain lazy vectors whose object elements receive the same treatment.
+
+   All three wrap points — the argument wrap, the transform, and the vendored recursive branch — gate on `cljs.core/object?`, i.e. `(identical? (.-constructor x) js/Object)`, so only plain objects are beaned. That gate is deliberate and load-bearing: consumers call methods on the AG Grid objects they receive, `RowNode`, `Column`/`AgColumn`, and `GridApi` are all classes, and a bean is a `deftype` carrying none of their methods. Keeping class instances raw is the only reason `(.getValue (:column params))` and `(.getRowNode (:api params))` work through beaned params at all.
+
+   **Beans cover data, not AG Grid objects.** The law covers params, `params.data`, direct row arguments, custom params, and object cell values without classifying them. It does not cover `RowNode`, `Column`, or `GridApi` arguments, nor anything reached through one: a node arrives raw with its methods intact, so its row is read as `(.-data node)`, not `(:data node)`, which is nil. Read through AG Grid objects with interop, not keyword lookup.
 
 3. **AG Grid vocabulary stays stable through camel priority.** On a params object carrying `rowIndex`, `(:row-index p)` still reads `rowIndex`. If a consumer object also carries a literal `"row-index"`, camel remains authoritative wherever both are present. No AG Grid key list or production deny-list is needed.
 
@@ -52,13 +57,13 @@ cljs-bean also implements ordinary collection update protocols, but callback bea
 
 8. **Do not make bean identity a contract.** Caching a nested bean may be used if measurement justifies it, but repeated `(:data p)` calls need only return equivalent views over the same JS object. Object identity and cache lifetime are implementation details.
 
-9. **Do not support callback-bean writes as object mutation.** `assoc`, `conj`, `update`, and nested updates over a callback bean are ordinary CLJS collection operations; they may snapshot into persistent maps or cloned array-backed values and then cross the callback return boundary as normal EDN. `dissoc` may clone a JS object under cljs-bean's existing implementation, but it is not a supported AG Grid object mutation operation and must not be specified through the fallback resolver. Code that must mutate AG Grid objects should use `(ag/raw f)` or explicitly unwrap the backing JS object and use JS mutation/API calls.
+9. **Do not support callback-bean writes as object mutation.** `assoc`, `conj`, `update`, and nested updates over a callback bean are ordinary CLJS collection operations; they may snapshot into persistent maps or cloned array-backed values and then cross the callback return boundary as normal EDN. `dissoc` may clone a JS object under cljs-bean's existing implementation, but it is not a supported AG Grid object mutation operation and must not be specified through the fallback resolver. Code that must mutate AG Grid objects should use `(ag/raw f)` or the raw AG Grid object it already holds, and call JS mutation/API methods on it. No public unwrap is needed or ships: the objects worth mutating through — `RowNode` above all — are class instances and were never beaned (§2), so `(.setDataValue (:node params) "qty" 3)` works in an ordinary non-raw handler.
 
 ## Consequences
 
 - Kebab-keyed data from bare `clj->js` becomes reachable in callbacks, including nested-only dashed keys and arrays of nested objects.
 - Heterogeneous rows behave independently of order. A camel first row cannot strand a later kebab row.
-- Direct-data and `RowNode` callbacks follow the same law as ordinary params callbacks.
+- Direct-data callbacks follow the same law as ordinary params callbacks. `RowNode` callbacks do not: their argument is a class instance and stays raw, so it is read with interop.
 - Literal custom properties on non-row callback objects become reachable when their camel spelling is absent. This broadening is intentional; camel priority means no existing successful lookup changes.
 - Common undashed lookups need neither camelization nor a presence check. Dashed lookups pay the object-local presence test.
 - An object carrying both `firstName` and `"first-name"` remains ambiguous when enumerated: `prop->key` collapses both to `:first-name`, lookup returns the camel value, `keys` reports the key twice, and `(into {} bean)` may retain the later entry. Detecting or policing such rows would require a hot-path key scan and is not justified.
@@ -74,7 +79,7 @@ The row-scoped prototype established that cljs-bean's public options can impleme
 
 Verification therefore covers both read semantics and cost:
 
-- node contract tests for camel priority, literal fallback, falsy values, nested-only dashed keys, arrays, heterogeneous row order, direct data, `RowNode.data`, and `with-row-id`;
+- node contract tests for camel priority, literal fallback, falsy values, nested-only dashed keys, arrays, heterogeneous row order, direct data, and `with-row-id`, plus a test pinning the `object?` gate: a class-instance node argument arrives raw, so `(:data node)` is nil and `(.-data node)` is the row;
 - a browser test proving a string field renders a kebab-keyed row and a real AG Grid callback reads the same key;
 - warmed node microbenchmarks plus browser render and 100k-row sort/filter measurements after key-transform optimization;
 - a vendoring check that allows only the modifications already documented in THIRD-PARTY.md;
@@ -83,7 +88,7 @@ Verification therefore covers both read semantics and cost:
 ## Considered options
 
 - **Camelize rows at the `clj->js` boundary** with a camelizing `:keyword-fn` — retained as the zero-read-overhead recipe, rejected as the only answer. It forces consumer data into AG Grid's vocabulary to satisfy callback-bean mechanics. The JS-by-contract warning must still describe this recipe accurately.
-- **Fallback only under `params.data` / `params.node.data`** — rejected. It needs identity matching, leaves direct-data and `RowNode` callback shapes incomplete, and makes the wrapper classify objects that the uniform function wrapper deliberately treats alike.
+- **Fallback only under `params.data` / `params.node.data`** — rejected. It needs identity matching, leaves direct-data callback shapes incomplete, and makes the wrapper classify objects that the uniform function wrapper deliberately treats alike.
 - **Per-grid first-row gate in a `WeakMap<GridApi, boolean>`** — rejected. It makes behavior depend on row order, misses rows whose dashed keys exist only below an undashed root, and cannot cover object callback arguments without a GridApi. A false result cannot both be cached forever and later move monotonically to true without re-sampling.
 - **Per-row or repeated shape sampling** — rejected. It scans keys to predict a decision that the lookup itself can make exactly. Caching also becomes stale when rows are heterogeneous or change shape.
 - **A mapper built from column fields** — rejected. It misses keys with no column, nested collection keys, and direct callback data. Giving it precedence can also shadow AG Grid params vocabulary.

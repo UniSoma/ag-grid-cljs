@@ -77,7 +77,7 @@ Prose. One editable-grids article carrying pending-rows, the rollback loop (both
 
 ### Not the reframing: beans
 
-The review initially claimed `(:node params)` is a callback bean and that the helpers therefore needed a public `unwrap`. That is wrong. All three wrap points gate on `cljs.core/object?` — `(identical? (.-constructor x) js/Object)` — and `RowNode` is a class (`main.cjs.js:4259`), so it is handed back untouched; `.setDataValue` on it works in an ordinary non-`raw` handler. The gate is also the only reason `params.api` and `params.column` (`AgColumn`, `main.cjs.js:2411`) keep their methods. Nothing was blocked, and no unwrap is load-bearing here. The gate does contradict ADR 0018 §2's claim that the lookup law covers RowNode arguments; that is a separate defect, ticketed, and it is a documentation defect rather than a code one.
+The review initially claimed `(:node params)` is a callback bean and that the helpers therefore needed a public `unwrap`. That is wrong. All three wrap points gate on `cljs.core/object?` — `(identical? (.-constructor x) js/Object)` — and `RowNode` is a class (`main.cjs.js:4259`), so it is handed back untouched; `.setDataValue` on it works in an ordinary non-`raw` handler. The gate is also the only reason `params.api` and `params.column` (`AgColumn`, `main.cjs.js:2411`) keep their methods. Nothing was blocked, and no unwrap is load-bearing here. The gate did contradict ADR 0018 §2's claim that the lookup law covers RowNode arguments; that was a documentation defect rather than a code one, and §2 now states the gate and the rule *beans cover data, not AG Grid objects*.
 
 ## Consequences
 

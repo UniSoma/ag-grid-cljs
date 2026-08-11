@@ -1,10 +1,19 @@
 (ns ag-grid-cljs.impl.callback-bean-test
   "Contract tests for the callback-bean literal-key fallback (ADR 0018,
   ticket agd-01kygja77mxj): a keyword resolves to its camelized property when
-  present, otherwise to its literal name — object-local, camel priority."
+  present, otherwise to its literal name — object-local, camel priority.
+
+  Also pins the boundary the law stops at (ADR 0018 §2): the wrap points gate
+  on `cljs.core/object?`, so AG Grid's class instances are never beaned."
   (:require [cljs.test :refer [deftest is testing]]
             [ag-grid-cljs.impl.bean :as bean]
             [ag-grid-cljs.impl.convert :as c]))
+
+;; A RowNode stand-in carrying rowIndex and data. A class instance, as AG
+;; Grid's RowNode is, so it lands object?-false at the wrap points' gate.
+;; Not test-support's fake-node: that one models what the live-grid checks
+;; read off a node (data, group), and the gate needs a camel prop to miss on.
+(deftype NodeFake [rowIndex data])
 
 (defn- wrapped
   "The auto-wrapped form of f, as the options converter produces it."
@@ -58,15 +67,22 @@
       (is (= 3 (read #js {:rowIndex 3})))
       (is (= 3 (read #js {:rowIndex 3 "row-index" 99}))
           "camel stays authoritative when a literal spelling coexists")))
-  (testing "node object reached through params"
+  (testing "a node reached through params is not beaned"
+    ;; The params object is a plain object and is beaned; the node it carries
+    ;; is a class instance, so the object? gate hands it back raw.
     (let [seen (atom nil)
+          node (NodeFake. 7 #js {"first-name" "Ada"})
           w    (wrapped (fn [p]
-                          (reset! seen [(-> p :node :row-index)
+                          (reset! seen [(:row-index p)
+                                        (identical? node (:node p))
+                                        (-> p :node :row-index)
                                         (-> p :node :data :first-name)])
                           nil))]
-      (w #js {:node #js {:rowIndex 7 :data #js {"first-name" "Ada"}}})
-      (is (= [7 "Ada"] @seen)
-          "node props read camel; node.data gets the same lookup law"))))
+      (w #js {:rowIndex 3 :node node})
+      (is (= [3 true nil nil] @seen)
+          "params keeps camel priority; the raw node answers no keyword lookup")
+      (is (= 7 (.-rowIndex node))
+          "the node's props are read through interop, not keyword lookup"))))
 
 (deftest direct-data-argument-gets-the-same-law
   ;; getDataPath / isRowMaster / getServerSideGroupKey style: the row itself
@@ -76,12 +92,23 @@
            (vec (w #js {"first-name" "Ada" :lastName "Lovelace"})))
         "a direct row argument mixes literal and camel freely")))
 
-(deftest row-node-argument-data
+(deftest row-node-argument-is-not-beaned
   ;; isRowSelectable / doesExternalFilterPass style: the node is the argument.
+  ;; The wrap points gate on cljs.core/object?, and AG Grid's RowNode is a
+  ;; class, so a node argument arrives raw — beans cover data, not AG Grid
+  ;; objects. Keyword lookup does not reach into it; interop does.
   (let [seen (atom nil)
-        w    (wrapped (fn [node] (reset! seen (-> node :data :first-name)) nil))]
-    (w #js {:id "0" :data #js {"first-name" "Ada"}})
-    (is (= "Ada" @seen) "RowNode.data follows the callback-bean lookup law")))
+        node (NodeFake. 0 #js {"first-name" "Ada"})
+        w    (wrapped (fn [n]
+                        (reset! seen [(identical? node n)
+                                      (:data n)
+                                      (-> n :data :first-name)])
+                        nil))]
+    (w node)
+    (is (= [true nil nil] @seen)
+        "the node is handed back raw, so (:data node) is nil")
+    (is (= "Ada" (unchecked-get (.-data node) "first-name"))
+        "a node's row is read as (.-data node)")))
 
 (deftest lookup-like-operations-follow-the-law
   (let [b (c/params-bean #js {:firstName "camel" "last-name" "kebab"})]

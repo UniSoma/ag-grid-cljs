@@ -25,7 +25,7 @@ Handlers are plain grid options: `(-> (options) (with-columns ...) (assoc :on-ce
 
 ### 2. Uniform "function-valued option" surface — event vs callback is a DOCS taxonomy, not an API branch
 
-The two kinds AG Grid treats differently get ONE treatment. Per the conversion contract (ADR 0005): IN = one arg, a lazy kebab-bean over AG Grid's event/params object (`(:value e)`, `(:data e)`, `(:node e)`, `(:api e)`; `:api` is a raw JS instance reached as a bean view); OUT = events return nil (ignored), callbacks' returns are forward-converted; OPT-OUT = `(ag/raw f)` for hot paths. Value callbacks that deserve coercion already got dedicated builders (`with-row-id`); the rest stay plain function-valued keys.
+The two kinds AG Grid treats differently get ONE treatment. Per the conversion contract (ADR 0005): IN = one arg, a lazy kebab-bean over AG Grid's event/params object (`(:value e)`, `(:data e)`, `(:node e)`, `(:api e)`; beans cover data, not AG Grid objects, so `:node` and `:api` hand back the raw class instances with their methods intact — read through them with interop, e.g. `(.-data node)`, per ADR 0018 §2); OUT = events return nil (ignored), callbacks' returns are forward-converted; OPT-OUT = `(ag/raw f)` for hot paths. Value callbacks that deserve coercion already got dedicated builders (`with-row-id`); the rest stay plain function-valued keys.
 
 ### 3. Imperative gaps: raw `grid-api` only for v1
 

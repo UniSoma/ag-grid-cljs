@@ -57,7 +57,7 @@ How often a given dev warning repeats. A warning about what the consumer *wrote*
 _Avoid_: dedup, warn-once
 
 **Callback bean**:
-The lazy view a wrapped callback receives over each JS object argument and recursively reached object, resolving keyword lookups without converting the underlying value.
+The lazy view a wrapped callback receives over each plain-JS-object argument and recursively reached plain object, resolving keyword lookups without converting the underlying value. Beans cover data, not AG Grid objects: `RowNode`, `Column` and `GridApi` are class instances and arrive raw (ADR 0018 §2).
 _Avoid_: params bean, row bean, data bean
 
 **Literal-key fallback**:

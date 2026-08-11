@@ -238,8 +238,10 @@
   (if (object? a) (params-bean a) a))
 
 (defn- wrap-fn
-  "Auto-wrap a user fn found in the options tree: JS-object args arrive as
-  lazy kebab beans, the return value runs through the forward converter.
+  "Auto-wrap a user fn found in the options tree: plain-JS-object args arrive
+  as lazy kebab beans, the return value runs through the forward converter.
+  The object? gate means AG Grid's own class instances — RowNode, Column,
+  GridApi — pass through raw, keeping their methods (ADR 0018 §2).
   Fixed 0–3 arities avoid rest/map/apply allocation for common AG Grid
   callbacks; larger arities retain the same variadic behavior.
   (raw f) opts out entirely."

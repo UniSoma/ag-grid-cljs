@@ -46,11 +46,18 @@
         :isFieldContainsDots        (fn [] field-dots?)
         :isTooltipFieldContainsDots (fn [] tooltip-dots?)}))
 
+(deftype RowNodeFake [data group])
+
 (defn fake-node
   "A fake RowNode. `data` nil models a CSRM group node; :group true models a
-  group row (an SSRM group row carries only its grouping field)."
+  group row (an SSRM group row carries only its grouping field).
+
+  A class instance, not a #js literal, because AG Grid's RowNode is a class
+  and the callback wrap points gate on `cljs.core/object?` — class instances
+  are object?-false and are handed to callbacks raw, never beaned. A plain
+  literal here would model the wrong side of that gate."
   [data group?]
-  #js {:data data :group group?})
+  (RowNodeFake. data group?))
 
 (defn fake-api
   "A fake GridApi, as `[api calls nodes destroyed?]`. `:columns` nil models the
