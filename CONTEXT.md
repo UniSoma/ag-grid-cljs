@@ -17,7 +17,7 @@ The row-data rule: consumers supply plain JS row objects directly; the wrapper n
 _Avoid_: eager conversion, proxy rows
 
 **Row recipe**:
-One of the two supported pairings for turning CLJS data into renderable rows — camel-keyed rows with keyword `:field`s, or literal kebab-keyed rows with string `:field`s. A recipe is the pairing, not the conversion call; half a recipe renders blank cells.
+One of the two supported pairings for turning CLJS data into renderable rows — camel-keyed rows with keyword `:field`s, or literal kebab-keyed rows with string `:field`s. A recipe is the pairing, not the conversion call; half a recipe renders blank cells. The pairing outlives the datasource: a later write into a row must use the same converter the row was built with, or it lands a ghost key beside the live one — and a getter citing that name reads the ghost.
 _Avoid_: row conversion, clj->js recipe
 
 **Consumer-keyed option**:

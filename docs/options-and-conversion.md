@@ -237,10 +237,17 @@ Callback beans are a read view, not a write channel. `assoc`, `dissoc`,
 or clone — they never mutate the underlying AG Grid params, row, or
 `RowNode.data`, and their results cross a non-raw callback return through the
 normal EDN→JS converter, where keyword keys camelize (a map derived from a
-`"first-name"` row comes back out as `firstName`). A callback that must mutate
-an AG Grid object or preserve literal property names on return should use
-`(ag/raw f)`, explicit JS objects and string keys, or unwrap the backing JS
-object and mutate it through JS/API calls.
+`"first-name"` row comes back out as `firstName`). A callback that must
+preserve literal property names on return should use `(ag/raw f)` or explicit
+JS objects with string keys.
+
+Mutating needs no unwrapping, because the objects you mutate through were never
+beaned. Beans cover *data*; AG Grid's own objects — `RowNode`, `Column`,
+`GridApi` — are class instances and reach your callback raw, with their methods
+intact. So `(:node params)` is a real `RowNode`: call `(.setDataValue node
+"qty" 3)` or `(.setData node row)` on it directly. The cost of that rule is
+that keyword lookup does *not* reach into them: read a node's row as
+`(.-data node)`, not `(:data node)`, which is `nil`.
 
 The full event and callback shape is its own topic; renderer functions in
 particular have their own article ([Cell rendering](cell-rendering.md)).

@@ -1,6 +1,7 @@
 # 0009. Curated builder catalog v1
 
 - Status: accepted, 2026-07-22
+- Amended 2026-08-11: `## Node operations` added — the escape-hatch bar, one channel over from the builders
 - Origin: knot ticket agd-01ky0edx5mfs (tickets are ephemeral; this record is self-contained)
 
 The v1 curated `with-*` builder catalog is locked at 8 entries, selected by a strict admission bar: a builder must COERCE input or BUNDLE behavior — never merely name a single option. Everything else is a reference-table entry, a documented recipe, or prose.
@@ -50,6 +51,34 @@ The bar gains a second clause from ADR 0021: a builder's output must be **rebuil
 
 Per-column `col` builder; row-grouping bundle; theming builders (theming is docs-only in v1 per ADR 0013).
 
+## Node operations
+
+Added 2026-08-11. A proposal arrived for two RowNode wrappers — `set-data-value!` (coerce a column ident, call `.setDataValue`, pass a `source` sentinel) and `set-row-data!` (merge into `node.data`, call `.setData`) — pitched as a **node-ops** category beside the builders, with its own bar: *a pure wrapper over a documented RowNode method*. Both are rejected, and the category is not opened.
+
+### The bar for the escape hatch
+
+The proposed bar admits everything: `.setSelected`, `.setExpanded`, `.setRowHeight` and `.setRowSelectable` all clear "pure wrapper over a documented method" identically, which is the mirror-the-API treadmill ADR 0002 ruled out. ADR 0004 channel 3 already owns this ground — `grid-api` is the documented route to any imperative capability — so the question is not *what may we add* but *what must leave the hatch*.
+
+The line, proposed by the requester and adopted: **does the call cross the wrapper's data-conversion boundary, and does its raw form fight a contract the wrapper already committed to?** Primitive-taking, row-object-free node methods are nothing the reference table cannot express; they stay behind `grid-api`. On this test `.setData` is the only interesting RowNode method — the only one taking a **row object**, which is JS-by-contract (ADR 0003) at a spelling the consumer fixed at datasource time.
+
+### `set-data-value!` — rejected
+
+Stripped down it is `(.setDataValue node (name col) v source)`: a `name` call plus a passthrough argument. The `name` is the keyword→string decision the library deliberately leaves to the consumer for `:field` (entry #3 above) — doing it here and nowhere else makes the library inconsistent with itself. And `source` is one arm of a protocol: the sentinel write is meaningless without the handler-side guard (`(when-not (= "restore" source) …)`) that breaks the write→fail→restore→write cycle. Shipping one arm as a function and leaving the other in prose implies an ownership the library does not have. It goes to the recipes, beside pending-rows, which this ADR sent there for the same reason.
+
+### `set-row-data!` — clears the bar, loses on the converter
+
+The merge is not sugar: `.setData` *replaces*, so a consumer changing one key silently drops the rest of the row. Teaching a contract the raw method fights is the `with-row-data` shape, and it clears the bar above. It is rejected anyway, on the fact that killed it at its own call sites: **a library-side merge has to convert with the same converter the rows were built with, and the library cannot know which that was.** Under a camelizing merge against literal-kebab rows, `{:row-id 7}` lands `rowId` beside the live `"row-id"`; the row-id getter then reads the ghost and rows lose identity after an edit — silent, and visible only downstream. Guessing the row recipe is the `:field` problem that rejected `set-data-value!`, one level up. The version that dodges it takes a JS object, at which point it is `Object.assign` plus `.setData` with a docstring.
+
+Call-site evidence, from the requester, cuts the same way: two sites, one app, one code path; all merging; all nodes callback-derived; all keys bare `clj->js` on the literal recipe.
+
+### What ships instead
+
+Prose. One editable-grids article carrying pending-rows, the rollback loop (both arms plus the batch variant — an all-or-nothing server rollback restores N cells and fires N `cellValueChanged` events), and the server round-trip write-back with the `.setData` replace trap. The load-bearing rule from the withdrawn function survives as a rule: *a write into a row must use the converter the row was built with* — now also in `CONTEXT.md`'s **row recipe** entry, which previously scoped the pairing to rendering only.
+
+### Not the reframing: beans
+
+The review initially claimed `(:node params)` is a callback bean and that the helpers therefore needed a public `unwrap`. That is wrong. All three wrap points gate on `cljs.core/object?` — `(identical? (.-constructor x) js/Object)` — and `RowNode` is a class (`main.cjs.js:4259`), so it is handed back untouched; `.setDataValue` on it works in an ordinary non-`raw` handler. The gate is also the only reason `params.api` and `params.column` (`AgColumn`, `main.cjs.js:2411`) keep their methods. Nothing was blocked, and no unwrap is load-bearing here. The gate does contradict ADR 0018 §2's claim that the lookup law covers RowNode arguments; that is a separate defect, ticketed, and it is a documentation defect rather than a code one.
+
 ## Consequences
 
 - The catalog is small and every entry justifies itself against the bar, so the catalog does not grow by naming-sugar accretion; new candidates must coerce or bundle.
@@ -73,3 +102,10 @@ Per-column `col` builder; row-grouping bundle; theming builders (theming is docs
 - ADR 0010 — event and callback shape (`getRows` marshalling)
 - ADR 0013 — theming docs-only in v1
 - ADR 0021 — rebuild-stable option values (the second admission-bar clause)
+
+Added 2026-08-11 with the node-operations section:
+
+- ADR 0003 — JS-by-contract rows (the contract `.setData` writes into)
+- ADR 0004 — update model (`grid-api` as channel 3, the home node ops keep)
+- ADR 0018 §2 — callback beans (the `object?` gate, and the RowNode claim it contradicts)
+- `docs/options-and-conversion.md` — the two **row recipes** the merge could not choose between
