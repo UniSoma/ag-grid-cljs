@@ -4,9 +4,12 @@
   react/react-dom on their npm classpath; the core stays framework-agnostic.
 
   Mounts a local React root per cell (createRoot in init, unmount in
-  destroy). renders go through flushSync so the cell has content
-  synchronously when AG Grid attaches it — createRoot renders are async by
-  default and would flash empty cells.
+  destroy). Cell renders are queued and flushed in ONE flushSync per
+  microtask: content lands before paint, not on the call stack — createRoot
+  renders are async by default and would flash empty cells, while a flushSync
+  per cell on the caller's stack is a React DEV error whenever that stack is
+  inside a React commit (e.g. refreshCells from a useEffect) and defeats
+  batching N times over (spike agd-01kzr7wehb0d).
 
   unmount is deferred one microtask: a synchronous unmount inside a React
   commit (the typical React host destroys grids from a useEffect cleanup)
@@ -20,22 +23,45 @@
             ["react-dom" :refer [flushSync]]
             ["react-dom/client" :refer [createRoot]]))
 
+;; Pending cell-render thunks for the current microtask, nil when none is
+;; scheduled. Module-level on purpose: one flush covers every cell of every
+;; grid on the page, which is what collapses N flushSync calls into one.
+(defonce ^:private render-queue (volatile! nil))
+
+(defn- schedule-render!
+  "Queue a cell-render thunk; the first thunk of a tick schedules ONE
+  flushSync-wrapped drain at end of microtask — after any enclosing React
+  commit's stack unwinds, before paint."
+  [thunk]
+  (if-some [q @render-queue]
+    (.push q thunk)
+    (do (vreset! render-queue #js [thunk])
+        (js/queueMicrotask
+         (fn []
+           (let [q @render-queue]
+             (vreset! render-queue nil)
+             (flushSync (fn [] (.forEach q (fn [t] (t)))))))))))
+
 (defn- react-lifecycle [render-fn]
   {:init    (fn [state params]
               (let [el   (js/document.createElement "span")
                     root (createRoot el)]
-                (flushSync #(.render root (render-fn params)))
-                (reset! state {:el el :root root})))
+                (reset! state {:el el :root root})
+                ;; the destroyed guard covers a destroy landing between queue
+                ;; and drain — skip rendering into a root about to unmount
+                (schedule-render! #(when-not (:destroyed @state)
+                                     (.render root (render-fn params))))))
    :get-gui (fn [state] (:el @state))
    :refresh (fn [state params]
-              (flushSync #(.render (:root @state) (render-fn params)))
+              (let [root (:root @state)]
+                (schedule-render! #(when-not (:destroyed @state)
+                                     (.render root (render-fn params)))))
               true)
-   ;; deferred so a destroy inside a React commit doesn't warn (ns docstring);
-   ;; double-unmount is a no-op, so a late microtask racing a re-destroy is safe
    ;; deferred so a destroy inside a React commit doesn't warn (ns docstring);
    ;; double-unmount is a no-op, so a late microtask racing a re-destroy is safe
    :destroy (fn [state]
               (when-let [root (:root @state)]
+                (swap! state assoc :destroyed true)
                 (js/queueMicrotask #(.unmount root))))})
 
 ;; This namespace owns its own construction tag, so `convert` never requires

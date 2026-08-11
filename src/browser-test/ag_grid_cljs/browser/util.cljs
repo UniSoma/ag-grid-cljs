@@ -48,6 +48,13 @@
               (js/setTimeout tick 25)
               (resolve nil)))))))))
 
+(defn await-microtask
+  "Promise resolved at end of the current microtask queue — after the react
+  cell-render flush lands (ag-grid-cljs.react batches cell renders into one
+  flushSync per microtask: content lands before paint, not on the call stack)."
+  []
+  (js/Promise. (fn [resolve] (js/queueMicrotask (fn [] (resolve))))))
+
 (defn next-frame
   "Promise resolved on the next animation frame — lets AG Grid flush a
   virtualization/scroll update before an assertion reads back the DOM."
