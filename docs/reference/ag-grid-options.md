@@ -2,12 +2,12 @@
 
 <!--
   GENERATED — do not edit by hand.
-  AG Grid version: 36.0.2
+  AG Grid version: 36.1.0
   Regenerate with `cd tools/codegen && npm run generate` on an AG Grid
   dependency bump (tools/codegen/extract.mjs, ADR 0007). Never hand-edit.
 -->
 
-Kebab-case option and event names for AG Grid **36.0.2**, with the
+Kebab-case option and event names for AG Grid **36.1.0**, with the
 camelCase name each converts to. Keys are ordinary EDN — the full surface is
 reachable by `assoc`. For semantics of each option see the AG Grid docs:
 <https://www.ag-grid.com/javascript-data-grid/grid-options/>.
@@ -56,10 +56,12 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `clipboard-delimiter` | `clipboardDelimiter` | string |  |  | Specify the delimiter to use when copying to clipboard. |
 | `col-resize-default` | `colResizeDefault` | object |  |  | Set to `'shift'` to have shift-resize as the default resize operation (same as user holding down `Shift` while resizing). |
 | `column-defs` | `columnDefs` | array |  |  | Array of Column / Column Group definitions. |
+| `column-header-edit` | `columnHeaderEdit` | object |  |  | Configures editing of column and column group header names via the UI. Requires |
 | `column-hover-highlight` | `columnHoverHighlight` | boolean |  |  | Set to `true` to highlight columns by adding the `ag-column-hover` CSS class. |
 | `column-menu` | `columnMenu` | object | yes |  | Changes the display type of the column menu. |
 | `column-types` | `columnTypes` | object |  |  | An object map of custom column types which contain groups of properties that column definitions can reuse by referencing in their `type` property. |
 | `components` | `components` | object | yes |  | A map of component names to components. |
+| `content-visibility-auto-delay` | `contentVisibilityAutoDelay` | number | yes |  | The delay in ms between the firstDataRendered event and enabling content-visibility:auto on the grid wrapper element |
 | `context` | `context` | any | yes |  | Provides a context object that is provided to different callbacks the grid uses. Used for passing additional information to the callbacks used by your application. |
 | `copy-group-headers-to-clipboard` | `copyGroupHeadersToClipboard` | boolean |  |  | Set to `true` to also include group headers when copying to clipboard using `Ctrl + C` clipboard. |
 | `copy-headers-to-clipboard` | `copyHeadersToClipboard` | boolean |  |  | Set to `true` to also include headers when copying to clipboard using `Ctrl + C` clipboard. |
@@ -91,6 +93,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `enable-cell-span` | `enableCellSpan` | boolean | yes |  | When `true`, enables the cell span feature allowing for the use of the `colDef.spanRows` property. |
 | `enable-cell-text-selection` | `enableCellTextSelection` | boolean |  |  | Set to `true` to be able to select the text within cells. |
 | `enable-charts` | `enableCharts` | boolean |  |  | Set to `true` to Enable Charts. |
+| `enable-content-visibility-auto` | `enableContentVisibilityAuto` | boolean | yes |  | Set to `true` to enable `content-visibility: auto` on the grid wrapper element. This improves performance by allowing the browser to skip rendering grids that are off screen. JavaScript size measurement APIs like `offsetWidth` or `getBoundingClientRect` will report zero size when the grid is off-screen. This means that APIs that need to measure the size of DOM elements, like `sizeColumnsToFit` will not work either. To ensure that `autoSizeStrategy` works, content-visibility:auto will only be applied 1000ms after rendering the first data. This can be customised with `contentVisibilityAutoDelay` |
 | `enable-fill-handle` | `enableFillHandle` | boolean |  | v32.2 Use `cellSelection.handle` instead | Set to `true` to enable the Fill Handle. |
 | `enable-filter-handlers` | `enableFilterHandlers` | boolean | yes |  | Enable filter handlers for custom filter components. |
 | `enable-group-edit` | `enableGroupEdit` | boolean | yes |  |  |
@@ -119,6 +122,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `get-business-key-for-node` | `getBusinessKeyForNode` | object |  |  | Return a business key for the node. If implemented, each row in the DOM will have an attribute `row-business-key='abc'` where `abc` is what you return as the business key. |
 | `get-chart-toolbar-items` | `getChartToolbarItems` | object | yes |  | Callback to be used to customise the chart toolbar items. |
 | `get-child-count` | `getChildCount` | object | yes |  | Allows setting the child count for a group row. |
+| `get-column-menu-items` | `getColumnMenuItems` | object | yes |  | For customising the menu items shown for a column across the column menu, the Columns Tool Panel |
 | `get-context-menu-items` | `getContextMenuItems` | object |  |  | For customising the context menu. |
 | `get-data-path` | `getDataPath` | object | yes |  | Callback to be used when working with Tree Data when `treeData = true`. |
 | `get-document` | `getDocument` | object |  |  | Allows overriding what `document` is used. Currently used by Drag and Drop (may extend to other places in the future). Use this when you want the grid to use a different `document` than the one available on the global scope. This can happen if docking out components (something which Electron supports) |
@@ -157,6 +161,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `hide-padded-header-rows` | `hidePaddedHeaderRows` | boolean |  |  | Hide any column header rows that would only contain padded groups. |
 | `icons` | `icons` | object | yes |  | Icons to use inside the grid instead of the grid's default icons. |
 | `include-hidden-columns-in-advanced-filter` | `includeHiddenColumnsInAdvancedFilter` | boolean |  |  | Hidden columns are excluded from the Advanced Filter by default. |
+| `include-hidden-columns-in-charts` | `includeHiddenColumnsInCharts` | boolean |  |  | Hidden columns are included in charts by default, and remain in a chart if hidden after being added. |
 | `include-hidden-columns-in-quick-filter` | `includeHiddenColumnsInQuickFilter` | boolean |  |  | Hidden columns are excluded from the Quick Filter by default. |
 | `infinite-initial-row-count` | `infiniteInitialRowCount` | number | yes |  | How many extra blank rows to display to the user at the end of the dataset, which sets the vertical scroll and then allows the grid to request viewing more rows of data. |
 | `initial-group-order-comparator` | `initialGroupOrderComparator` | object |  |  | Allows default sorting of groups. |
@@ -165,7 +170,8 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `is-apply-server-side-transaction` | `isApplyServerSideTransaction` | object |  |  | Allows cancelling transactions. |
 | `is-external-filter-present` | `isExternalFilterPresent` | object |  |  | Grid calls this method to know if an external filter is present. |
 | `is-full-width-row` | `isFullWidthRow` | object |  |  | Tells the grid if this row should be rendered as full width. |
-| `is-group-open-by-default` | `isGroupOpenByDefault` | object |  |  | (Client-side Row Model only) Allows groups to be open by default. |
+| `is-group-open-by-default` | `isGroupOpenByDefault` | object |  |  | (Client-side Row Model only) Allows group rows to be open by default. For master rows use `isMasterOpenByDefault`. |
+| `is-master-open-by-default` | `isMasterOpenByDefault` | object |  |  | (Client-side Row Model only) Master Detail: allows master rows to be open by default. |
 | `is-row-master` | `isRowMaster` | object |  |  | Callback to be used with Master Detail to determine if a row should be a master row. If `false` is returned no detail row will exist for this row. |
 | `is-row-pinnable` | `isRowPinnable` | object |  |  | Return `true` if the grid should allow the row to be manually pinned. |
 | `is-row-pinned` | `isRowPinned` | object |  |  | Called for every row in the grid. |
@@ -184,6 +190,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `loading-overlay-component-params` | `loadingOverlayComponentParams` | any |  |  | Customise the parameters provided to the loading overlay component. |
 | `locale-text` | `localeText` | object | yes |  | A map of key->value pairs for localising text within the grid. |
 | `maintain-column-order` | `maintainColumnOrder` | boolean |  |  | Keeps the order of Columns maintained after new Column Definitions are updated. |
+| `master-default-expanded` | `masterDefaultExpanded` | number |  |  | Master Detail: set to the number of levels of master rows to expand by default, e.g. `0` for none, `1` for first level only, etc. Set to `-1` to expand everything. If not set, falls back to `groupDefaultExpanded`. |
 | `master-detail` | `masterDetail` | boolean |  |  | Set to `true` to enable Master Detail. |
 | `max-blocks-in-cache` | `maxBlocksInCache` | number | yes |  | How many blocks to keep in the store. Default is no limit, so every requested block is kept. Use this if you have memory concerns, and blocks that were least recently viewed will be purged when the limit is hit. The grid will additionally make sure it has all the blocks needed to display what is currently visible, in case this property is set to a low value. |
 | `max-concurrent-datasource-requests` | `maxConcurrentDatasourceRequests` | number | yes |  | How many requests to hit the server with concurrently. If the max is reached, requests are queued. |
@@ -217,6 +224,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `pivot-max-generated-columns` | `pivotMaxGeneratedColumns` | number |  |  | The maximum number of generated columns before the grid halts execution. Upon reaching this number, the grid halts generation of columns |
 | `pivot-mode` | `pivotMode` | boolean |  |  | Set to `true` to enable pivot mode. |
 | `pivot-panel-show` | `pivotPanelShow` | object | yes |  | When to show the 'pivot panel' (where you drag rows to pivot) at the top. Note that the pivot panel will never show if `pivotMode` is off. |
+| `pivot-panel-suppress-sort` | `pivotPanelSuppressSort` | boolean |  |  | Set to `true` to suppress sort indicators and actions from the pivot panel and the column tool panel pivot pills. |
 | `pivot-row-totals` | `pivotRowTotals` | object |  |  | When set and the grid is in pivot mode, automatically calculated totals will appear for each value column in the position specified. |
 | `pivot-suppress-auto-column` | `pivotSuppressAutoColumn` | boolean | yes |  | If `true`, the grid will not swap in the grouping column when pivoting. Useful if pivoting using Server Side Row Model or Viewport Row Model and you want full control of all columns including the group column. |
 | `popup-parent` | `popupParent` | object |  |  | DOM element to use as the popup parent for grid popups (context menu, column menu etc). |
@@ -293,7 +301,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `suppress-clipboard-paste` | `suppressClipboardPaste` | boolean |  |  | Set to `true` to turn off paste operations within the grid. |
 | `suppress-column-move-animation` | `suppressColumnMoveAnimation` | boolean |  |  | If `true`, the `ag-column-moving` class is not added to the grid while columns are moving. In the default themes, this results in no animation when moving columns. |
 | `suppress-column-virtualisation` | `suppressColumnVirtualisation` | boolean | yes |  | Set to `true` so that the grid doesn't virtualise the columns. For example, if you have 100 columns, but only 10 visible due to scrolling, all 100 will always be rendered. |
-| `suppress-content-visibility-auto` | `suppressContentVisibilityAuto` | boolean | yes |  | Set to `false` to enable `content-visibility: auto` on the grid wrapper element. This improves performance by allowing the browser to skip rendering grids that are off screen, but may cause issues if your application depends on receiving resize events from hidden grids. |
+| `suppress-content-visibility-auto` | `suppressContentVisibilityAuto` | boolean | yes | v36.1 use enableContentVisibilityAuto instead | Setting this option to false is equivalent to setting `enableContentVisibilityAuto` to true. If both are set, `enableContentVisibilityAuto` takes precedence. |
 | `suppress-context-menu` | `suppressContextMenu` | boolean |  |  | Set to `true` to not show the context menu. Use if you don't want to use the default 'right click' context menu. |
 | `suppress-copy-rows-to-clipboard` | `suppressCopyRowsToClipboard` | boolean |  | v32.2 Use `rowSelection.copySelectedRows` instead. | Set to `true` to copy the cell range or focused cell to the clipboard and never the selected rows. |
 | `suppress-copy-single-cell-ranges` | `suppressCopySingleCellRanges` | boolean |  | v32.2 Use `rowSelection.copySelectedRows` instead. | Set to `true` to copy rows instead of ranges when a range with only a single cell is selected. |
@@ -397,6 +405,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `col-span` | `colSpan` | object |  |  | By default, each cell will take up the width of one column. You can change this behaviour to allow cells to span multiple columns. |
 | `column-chooser-params` | `columnChooserParams` | object |  |  | Params used to change the behaviour and appearance of the Column Chooser/Columns Menu tab. |
 | `column-group-show` | `columnGroupShow` | object |  |  | Whether to only show the column when the group is open / closed. If not set the column is always displayed as part of the group. |
+| `column-menu-items` | `columnMenuItems` | object |  |  | Customise the menu items shown for this column across the column menu, the Columns Tool Panel |
 | `comparator` | `comparator` | object |  |  | Override the default sorting order by providing a custom sort comparator, or a map of comparators for different `SortType`s. |
 | `context` | `context` | any |  |  | Context property that can be used to associate arbitrary application data with this column definition. |
 | `context-menu-items` | `contextMenuItems` | object |  |  | Customise the list of menu items available in the context menu. |
@@ -432,6 +441,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `header-component` | `headerComponent` | any |  |  | The custom header component to be used for rendering the component header. If none specified the default AG Grid header component is used. |
 | `header-component-params` | `headerComponentParams` | any |  |  | The parameters to be passed to the `headerComponent`. |
 | `header-name` | `headerName` | string |  |  | The name to render in the column header. If not specified and field is specified, the field name will be used as the header name. |
+| `header-name-editable` | `headerNameEditable` | boolean |  |  | Set to `true` to allow the user to edit this column's (or column group's) header name from the UI. |
 | `header-style` | `headerStyle` | object |  |  | An object of CSS values / or function returning an object of CSS values for a particular header. |
 | `header-tooltip` | `headerTooltip` | string |  |  | Tooltip for the column header, `headerTooltipValueGetter` takes precedence if set. |
 | `header-tooltip-value-getter` | `headerTooltipValueGetter` | object |  |  | Callback that should return the string to use for a tooltip. |
@@ -444,6 +454,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `initial-pinned` | `initialPinned` | object | yes |  | Same as `pinned`, except only applied when creating a new column. Not applied when updating column definitions. |
 | `initial-pivot` | `initialPivot` | boolean | yes |  | Same as `pivot`, except only applied when creating a new column. Not applied when updating column definitions. |
 | `initial-pivot-index` | `initialPivotIndex` | number | yes |  | Same as `pivotIndex`, except only applied when creating a new column. Not applied when updating column definitions. |
+| `initial-pivot-sort` | `initialPivotSort` | object | yes |  | Same as `pivotSort`, except only applied when the column is created. Not used for subsequent updates. |
 | `initial-row-group` | `initialRowGroup` | boolean | yes |  | Same as `rowGroup`, except only applied when creating a new column. Not applied when updating column definitions. |
 | `initial-row-group-index` | `initialRowGroupIndex` | number | yes |  | Same as `rowGroupIndex`, except only applied when creating a new column. Not applied when updating column definitions. |
 | `initial-show-values-as` | `initialShowValuesAs` | object | yes |  | Same as `showValuesAs`, except only applied when creating a new column. |
@@ -468,9 +479,10 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `on-cell-value-changed` | `onCellValueChanged` | function |  |  | Callback for after the value of a cell has changed, either due to editing or the application calling `api.setValue()`. |
 | `pinned` | `pinned` | object |  |  | Pin a column to one side: `right` or `left`. A value of `true` is converted to `'left'`. |
 | `pivot` | `pivot` | boolean |  |  | Set to true to pivot by this column. |
-| `pivot-comparator` | `pivotComparator` | object | yes |  | Only for CSRM, see [SSRM Pivoting](https://www.ag-grid.com/javascript-data-grid/server-side-model-pivoting/). |
+| `pivot-comparator` | `pivotComparator` | object | yes |  | Comparator to use when ordering the pivot result groups generated when this column is used to pivot on. |
 | `pivot-index` | `pivotIndex` | number |  |  | Set this in columns you want to pivot by. |
 | `pivot-keys` | `pivotKeys` | array |  |  | Never set this, it is used internally by grid when doing in-grid pivoting |
+| `pivot-sort` | `pivotSort` | object |  |  | Sort direction applied to this column's pivot result columns when this column is used to pivot on. |
 | `pivot-total-column-ids` | `pivotTotalColumnIds` | array |  |  | Never set this, it is used internally by grid when doing in-grid pivoting |
 | `pivot-value-column` | `pivotValueColumn` | object |  |  | Never set this, it is used internally by grid when doing in-grid pivoting |
 | `ref-data` | `refData` | object |  |  | Provided a reference data map to be used to map column values to their respective value from the map. |
@@ -534,12 +546,14 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `cell-aria-role` | `cellAriaRole` | string |  |  | Used for screen reader announcements - the role property of the cells that belong to this column. |
 | `children` | `children` | array |  |  | A list containing a mix of columns and column groups. |
 | `column-group-show` | `columnGroupShow` | object |  |  | Whether to only show the column when the group is open / closed. If not set the column is always displayed as part of the group. |
+| `column-menu-items` | `columnMenuItems` | object |  |  | Customise the menu items shown for this column group across the column menu, the Columns Tool Panel |
 | `context` | `context` | any |  |  | Context property that can be used to associate arbitrary application data with this column definition. |
 | `group-id` | `groupId` | string |  |  | The unique ID to give the column. This is optional. If missing, a unique ID will be generated. This ID is used to identify the column group in the API. |
 | `header-class` | `headerClass` | object |  |  | CSS class to use for the header cell. Can be a string, array of strings, or function. |
 | `header-group-component` | `headerGroupComponent` | any |  |  | The custom header group component to be used for rendering the component header. If none specified the default AG Grid is used. |
 | `header-group-component-params` | `headerGroupComponentParams` | any |  |  | The params used to configure the `headerGroupComponent`. |
 | `header-name` | `headerName` | string |  |  | The name to render in the column header. If not specified and field is specified, the field name will be used as the header name. |
+| `header-name-editable` | `headerNameEditable` | boolean |  |  | Set to `true` to allow the user to edit this column's (or column group's) header name from the UI. |
 | `header-style` | `headerStyle` | object |  |  | An object of CSS values / or function returning an object of CSS values for a particular header. |
 | `header-tooltip` | `headerTooltip` | string |  |  | Tooltip for the column header, `headerTooltipValueGetter` takes precedence if set. |
 | `header-tooltip-value-getter` | `headerTooltipValueGetter` | object |  |  | Callback that should return the string to use for a tooltip. |
@@ -599,6 +613,7 @@ reachable by `assoc`. For semantics of each option see the AG Grid docs:
 | `column-header-context-menu` | `columnHeaderContextMenu` | `onColumnHeaderContextMenu` |
 | `column-header-mouse-leave` | `columnHeaderMouseLeave` | `onColumnHeaderMouseLeave` |
 | `column-header-mouse-over` | `columnHeaderMouseOver` | `onColumnHeaderMouseOver` |
+| `column-header-name-changed` | `columnHeaderNameChanged` | `onColumnHeaderNameChanged` |
 | `column-menu-visible-changed` | `columnMenuVisibleChanged` | `onColumnMenuVisibleChanged` |
 | `column-moved` | `columnMoved` | `onColumnMoved` |
 | `column-pinned` | `columnPinned` | `onColumnPinned` |

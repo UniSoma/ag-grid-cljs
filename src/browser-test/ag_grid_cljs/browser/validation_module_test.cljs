@@ -35,7 +35,7 @@
                         (grid/with-row-data #js [#js {:name "Ada"}])
                         (assoc :enable-range-selection true)))
                 (finally (set! js/console.warn orig)))]
-        (is (some #(re-find #"As of v32\.2, enableRangeSelection is deprecated\. Use `cellSelection = true`" %)
+        (is (some #(re-find #"As of v32\.2, `enableRangeSelection` is deprecated\. Use `cellSelection = true`" %)
                   @warnings)
             "AG Grid's own deprecation warning, carrying its replacement")
         (grid/destroy! h)

@@ -19,7 +19,7 @@
   :initial?, :deprecated and :doc are present only when AG Grid declares them.
   nil in production builds (goog.DEBUG false → DCE)."
   (when ^boolean goog.DEBUG
-    {:ag-grid-version "36.0.2"
+    {:ag-grid-version "36.1.0"
      :grid-options
      {:accented-sort {:camel "accentedSort" :type :boolean :default "false" :doc "Set to `true` to specify that the sort should take accented characters into account. If this feature is turned on the sort will be slower."}
      :active-overlay {:camel "activeOverlay" :type :any :doc "Display an overlay on demand. If provided takes precedence over the grid provided overlays."}
@@ -61,10 +61,12 @@
      :clipboard-delimiter {:camel "clipboardDelimiter" :type :string :default "'\\t'" :doc "Specify the delimiter to use when copying to clipboard."}
      :col-resize-default {:camel "colResizeDefault" :type :object :doc "Set to `'shift'` to have shift-resize as the default resize operation (same as user holding down `Shift` while resizing)."}
      :column-defs {:camel "columnDefs" :type :array :doc "Array of Column / Column Group definitions."}
+     :column-header-edit {:camel "columnHeaderEdit" :type :object :doc "Configures editing of column and column group header names via the UI. Requires"}
      :column-hover-highlight {:camel "columnHoverHighlight" :type :boolean :default "false" :doc "Set to `true` to highlight columns by adding the `ag-column-hover` CSS class."}
      :column-menu {:camel "columnMenu" :type :object :default "'new'" :initial? true :doc "Changes the display type of the column menu."}
      :column-types {:camel "columnTypes" :type :object :doc "An object map of custom column types which contain groups of properties that column definitions can reuse by referencing in their `type` property."}
      :components {:camel "components" :type :object :initial? true :doc "A map of component names to components."}
+     :content-visibility-auto-delay {:camel "contentVisibilityAutoDelay" :type :number :default "1000" :initial? true :doc "The delay in ms between the firstDataRendered event and enabling content-visibility:auto on the grid wrapper element"}
      :context {:camel "context" :type :any :initial? true :doc "Provides a context object that is provided to different callbacks the grid uses. Used for passing additional information to the callbacks used by your application."}
      :copy-group-headers-to-clipboard {:camel "copyGroupHeadersToClipboard" :type :boolean :default "false" :doc "Set to `true` to also include group headers when copying to clipboard using `Ctrl + C` clipboard."}
      :copy-headers-to-clipboard {:camel "copyHeadersToClipboard" :type :boolean :default "false" :doc "Set to `true` to also include headers when copying to clipboard using `Ctrl + C` clipboard."}
@@ -96,6 +98,7 @@
      :enable-cell-span {:camel "enableCellSpan" :type :boolean :default "false" :initial? true :doc "When `true`, enables the cell span feature allowing for the use of the `colDef.spanRows` property."}
      :enable-cell-text-selection {:camel "enableCellTextSelection" :type :boolean :default "false" :doc "Set to `true` to be able to select the text within cells."}
      :enable-charts {:camel "enableCharts" :type :boolean :default "false" :doc "Set to `true` to Enable Charts."}
+     :enable-content-visibility-auto {:camel "enableContentVisibilityAuto" :type :boolean :default "false" :initial? true :doc "Set to `true` to enable `content-visibility: auto` on the grid wrapper element. This improves performance by allowing the browser to skip rendering grids that are off screen. JavaScript size measurement APIs like `offsetWidth` or `getBoundingClientRect` will report zero size when the grid is off-screen. This means that APIs that need to measure the size of DOM elements, like `sizeColumnsToFit` will not work either. To ensure that `autoSizeStrategy` works, content-visibility:auto will only be applied 1000ms after rendering the first data. This can be customised with `contentVisibilityAutoDelay`"}
      :enable-fill-handle {:camel "enableFillHandle" :type :boolean :default "false" :deprecated "v32.2 Use `cellSelection.handle` instead" :doc "Set to `true` to enable the Fill Handle."}
      :enable-filter-handlers {:camel "enableFilterHandlers" :type :boolean :initial? true :doc "Enable filter handlers for custom filter components."}
      :enable-group-edit {:camel "enableGroupEdit" :type :boolean :initial? true}
@@ -124,6 +127,7 @@
      :get-business-key-for-node {:camel "getBusinessKeyForNode" :type :object :doc "Return a business key for the node. If implemented, each row in the DOM will have an attribute `row-business-key='abc'` where `abc` is what you return as the business key."}
      :get-chart-toolbar-items {:camel "getChartToolbarItems" :type :object :initial? true :doc "Callback to be used to customise the chart toolbar items."}
      :get-child-count {:camel "getChildCount" :type :object :initial? true :doc "Allows setting the child count for a group row."}
+     :get-column-menu-items {:camel "getColumnMenuItems" :type :object :initial? true :doc "For customising the menu items shown for a column across the column menu, the Columns Tool Panel"}
      :get-context-menu-items {:camel "getContextMenuItems" :type :object :doc "For customising the context menu."}
      :get-data-path {:camel "getDataPath" :type :object :initial? true :doc "Callback to be used when working with Tree Data when `treeData = true`."}
      :get-document {:camel "getDocument" :type :object :doc "Allows overriding what `document` is used. Currently used by Drag and Drop (may extend to other places in the future). Use this when you want the grid to use a different `document` than the one available on the global scope. This can happen if docking out components (something which Electron supports)"}
@@ -162,6 +166,7 @@
      :hide-padded-header-rows {:camel "hidePaddedHeaderRows" :type :boolean :doc "Hide any column header rows that would only contain padded groups."}
      :icons {:camel "icons" :type :object :initial? true :doc "Icons to use inside the grid instead of the grid's default icons."}
      :include-hidden-columns-in-advanced-filter {:camel "includeHiddenColumnsInAdvancedFilter" :type :boolean :default "false" :doc "Hidden columns are excluded from the Advanced Filter by default."}
+     :include-hidden-columns-in-charts {:camel "includeHiddenColumnsInCharts" :type :boolean :default "true" :doc "Hidden columns are included in charts by default, and remain in a chart if hidden after being added."}
      :include-hidden-columns-in-quick-filter {:camel "includeHiddenColumnsInQuickFilter" :type :boolean :default "false" :doc "Hidden columns are excluded from the Quick Filter by default."}
      :infinite-initial-row-count {:camel "infiniteInitialRowCount" :type :number :default "1" :initial? true :doc "How many extra blank rows to display to the user at the end of the dataset, which sets the vertical scroll and then allows the grid to request viewing more rows of data."}
      :initial-group-order-comparator {:camel "initialGroupOrderComparator" :type :object :doc "Allows default sorting of groups."}
@@ -170,7 +175,8 @@
      :is-apply-server-side-transaction {:camel "isApplyServerSideTransaction" :type :object :doc "Allows cancelling transactions."}
      :is-external-filter-present {:camel "isExternalFilterPresent" :type :object :doc "Grid calls this method to know if an external filter is present."}
      :is-full-width-row {:camel "isFullWidthRow" :type :object :doc "Tells the grid if this row should be rendered as full width."}
-     :is-group-open-by-default {:camel "isGroupOpenByDefault" :type :object :doc "(Client-side Row Model only) Allows groups to be open by default."}
+     :is-group-open-by-default {:camel "isGroupOpenByDefault" :type :object :doc "(Client-side Row Model only) Allows group rows to be open by default. For master rows use `isMasterOpenByDefault`."}
+     :is-master-open-by-default {:camel "isMasterOpenByDefault" :type :object :doc "(Client-side Row Model only) Master Detail: allows master rows to be open by default."}
      :is-row-master {:camel "isRowMaster" :type :object :doc "Callback to be used with Master Detail to determine if a row should be a master row. If `false` is returned no detail row will exist for this row."}
      :is-row-pinnable {:camel "isRowPinnable" :type :object :doc "Return `true` if the grid should allow the row to be manually pinned."}
      :is-row-pinned {:camel "isRowPinned" :type :object :doc "Called for every row in the grid."}
@@ -189,6 +195,7 @@
      :loading-overlay-component-params {:camel "loadingOverlayComponentParams" :type :any :doc "Customise the parameters provided to the loading overlay component."}
      :locale-text {:camel "localeText" :type :object :initial? true :doc "A map of key->value pairs for localising text within the grid."}
      :maintain-column-order {:camel "maintainColumnOrder" :type :boolean :default "false" :doc "Keeps the order of Columns maintained after new Column Definitions are updated."}
+     :master-default-expanded {:camel "masterDefaultExpanded" :type :number :doc "Master Detail: set to the number of levels of master rows to expand by default, e.g. `0` for none, `1` for first level only, etc. Set to `-1` to expand everything. If not set, falls back to `groupDefaultExpanded`."}
      :master-detail {:camel "masterDetail" :type :boolean :default "false" :doc "Set to `true` to enable Master Detail."}
      :max-blocks-in-cache {:camel "maxBlocksInCache" :type :number :initial? true :doc "How many blocks to keep in the store. Default is no limit, so every requested block is kept. Use this if you have memory concerns, and blocks that were least recently viewed will be purged when the limit is hit. The grid will additionally make sure it has all the blocks needed to display what is currently visible, in case this property is set to a low value."}
      :max-concurrent-datasource-requests {:camel "maxConcurrentDatasourceRequests" :type :number :default "2" :initial? true :doc "How many requests to hit the server with concurrently. If the max is reached, requests are queued."}
@@ -222,6 +229,7 @@
      :pivot-max-generated-columns {:camel "pivotMaxGeneratedColumns" :type :number :default "-1" :doc "The maximum number of generated columns before the grid halts execution. Upon reaching this number, the grid halts generation of columns"}
      :pivot-mode {:camel "pivotMode" :type :boolean :default "false" :doc "Set to `true` to enable pivot mode."}
      :pivot-panel-show {:camel "pivotPanelShow" :type :object :default "'never'" :initial? true :doc "When to show the 'pivot panel' (where you drag rows to pivot) at the top. Note that the pivot panel will never show if `pivotMode` is off."}
+     :pivot-panel-suppress-sort {:camel "pivotPanelSuppressSort" :type :boolean :default "false" :doc "Set to `true` to suppress sort indicators and actions from the pivot panel and the column tool panel pivot pills."}
      :pivot-row-totals {:camel "pivotRowTotals" :type :object :doc "When set and the grid is in pivot mode, automatically calculated totals will appear for each value column in the position specified."}
      :pivot-suppress-auto-column {:camel "pivotSuppressAutoColumn" :type :boolean :default "false" :initial? true :doc "If `true`, the grid will not swap in the grouping column when pivoting. Useful if pivoting using Server Side Row Model or Viewport Row Model and you want full control of all columns including the group column."}
      :popup-parent {:camel "popupParent" :type :object :doc "DOM element to use as the popup parent for grid popups (context menu, column menu etc)."}
@@ -298,7 +306,7 @@
      :suppress-clipboard-paste {:camel "suppressClipboardPaste" :type :boolean :default "false" :doc "Set to `true` to turn off paste operations within the grid."}
      :suppress-column-move-animation {:camel "suppressColumnMoveAnimation" :type :boolean :default "false" :doc "If `true`, the `ag-column-moving` class is not added to the grid while columns are moving. In the default themes, this results in no animation when moving columns."}
      :suppress-column-virtualisation {:camel "suppressColumnVirtualisation" :type :boolean :default "false" :initial? true :doc "Set to `true` so that the grid doesn't virtualise the columns. For example, if you have 100 columns, but only 10 visible due to scrolling, all 100 will always be rendered."}
-     :suppress-content-visibility-auto {:camel "suppressContentVisibilityAuto" :type :boolean :default "true" :initial? true :doc "Set to `false` to enable `content-visibility: auto` on the grid wrapper element. This improves performance by allowing the browser to skip rendering grids that are off screen, but may cause issues if your application depends on receiving resize events from hidden grids."}
+     :suppress-content-visibility-auto {:camel "suppressContentVisibilityAuto" :type :boolean :default "true" :initial? true :deprecated "v36.1 use enableContentVisibilityAuto instead" :doc "Setting this option to false is equivalent to setting `enableContentVisibilityAuto` to true. If both are set, `enableContentVisibilityAuto` takes precedence."}
      :suppress-context-menu {:camel "suppressContextMenu" :type :boolean :default "false" :doc "Set to `true` to not show the context menu. Use if you don't want to use the default 'right click' context menu."}
      :suppress-copy-rows-to-clipboard {:camel "suppressCopyRowsToClipboard" :type :boolean :default "false" :deprecated "v32.2 Use `rowSelection.copySelectedRows` instead." :doc "Set to `true` to copy the cell range or focused cell to the clipboard and never the selected rows."}
      :suppress-copy-single-cell-ranges {:camel "suppressCopySingleCellRanges" :type :boolean :default "false" :deprecated "v32.2 Use `rowSelection.copySelectedRows` instead." :doc "Set to `true` to copy rows instead of ranges when a range with only a single cell is selected."}
@@ -398,6 +406,7 @@
      :col-span {:camel "colSpan" :type :object :doc "By default, each cell will take up the width of one column. You can change this behaviour to allow cells to span multiple columns."}
      :column-chooser-params {:camel "columnChooserParams" :type :object :doc "Params used to change the behaviour and appearance of the Column Chooser/Columns Menu tab."}
      :column-group-show {:camel "columnGroupShow" :type :object :doc "Whether to only show the column when the group is open / closed. If not set the column is always displayed as part of the group."}
+     :column-menu-items {:camel "columnMenuItems" :type :object :doc "Customise the menu items shown for this column across the column menu, the Columns Tool Panel"}
      :comparator {:camel "comparator" :type :object :doc "Override the default sorting order by providing a custom sort comparator, or a map of comparators for different `SortType`s."}
      :context {:camel "context" :type :any :doc "Context property that can be used to associate arbitrary application data with this column definition."}
      :context-menu-items {:camel "contextMenuItems" :type :object :doc "Customise the list of menu items available in the context menu."}
@@ -433,6 +442,7 @@
      :header-component {:camel "headerComponent" :type :any :doc "The custom header component to be used for rendering the component header. If none specified the default AG Grid header component is used."}
      :header-component-params {:camel "headerComponentParams" :type :any :doc "The parameters to be passed to the `headerComponent`."}
      :header-name {:camel "headerName" :type :string :doc "The name to render in the column header. If not specified and field is specified, the field name will be used as the header name."}
+     :header-name-editable {:camel "headerNameEditable" :type :boolean :default "false" :doc "Set to `true` to allow the user to edit this column's (or column group's) header name from the UI."}
      :header-style {:camel "headerStyle" :type :object :doc "An object of CSS values / or function returning an object of CSS values for a particular header."}
      :header-tooltip {:camel "headerTooltip" :type :string :doc "Tooltip for the column header, `headerTooltipValueGetter` takes precedence if set."}
      :header-tooltip-value-getter {:camel "headerTooltipValueGetter" :type :object :doc "Callback that should return the string to use for a tooltip."}
@@ -445,6 +455,7 @@
      :initial-pinned {:camel "initialPinned" :type :object :initial? true :doc "Same as `pinned`, except only applied when creating a new column. Not applied when updating column definitions."}
      :initial-pivot {:camel "initialPivot" :type :boolean :initial? true :doc "Same as `pivot`, except only applied when creating a new column. Not applied when updating column definitions."}
      :initial-pivot-index {:camel "initialPivotIndex" :type :number :initial? true :doc "Same as `pivotIndex`, except only applied when creating a new column. Not applied when updating column definitions."}
+     :initial-pivot-sort {:camel "initialPivotSort" :type :object :initial? true :doc "Same as `pivotSort`, except only applied when the column is created. Not used for subsequent updates."}
      :initial-row-group {:camel "initialRowGroup" :type :boolean :initial? true :doc "Same as `rowGroup`, except only applied when creating a new column. Not applied when updating column definitions."}
      :initial-row-group-index {:camel "initialRowGroupIndex" :type :number :initial? true :doc "Same as `rowGroupIndex`, except only applied when creating a new column. Not applied when updating column definitions."}
      :initial-show-values-as {:camel "initialShowValuesAs" :type :object :initial? true :doc "Same as `showValuesAs`, except only applied when creating a new column."}
@@ -469,9 +480,10 @@
      :on-cell-value-changed {:camel "onCellValueChanged" :type :function :doc "Callback for after the value of a cell has changed, either due to editing or the application calling `api.setValue()`."}
      :pinned {:camel "pinned" :type :object :doc "Pin a column to one side: `right` or `left`. A value of `true` is converted to `'left'`."}
      :pivot {:camel "pivot" :type :boolean :doc "Set to true to pivot by this column."}
-     :pivot-comparator {:camel "pivotComparator" :type :object :initial? true :doc "Only for CSRM, see [SSRM Pivoting](https://www.ag-grid.com/javascript-data-grid/server-side-model-pivoting/)."}
+     :pivot-comparator {:camel "pivotComparator" :type :object :initial? true :doc "Comparator to use when ordering the pivot result groups generated when this column is used to pivot on."}
      :pivot-index {:camel "pivotIndex" :type :number :doc "Set this in columns you want to pivot by."}
      :pivot-keys {:camel "pivotKeys" :type :array :doc "Never set this, it is used internally by grid when doing in-grid pivoting"}
+     :pivot-sort {:camel "pivotSort" :type :object :default "'asc'" :doc "Sort direction applied to this column's pivot result columns when this column is used to pivot on."}
      :pivot-total-column-ids {:camel "pivotTotalColumnIds" :type :array :doc "Never set this, it is used internally by grid when doing in-grid pivoting"}
      :pivot-value-column {:camel "pivotValueColumn" :type :object :doc "Never set this, it is used internally by grid when doing in-grid pivoting"}
      :ref-data {:camel "refData" :type :object :doc "Provided a reference data map to be used to map column values to their respective value from the map."}
@@ -531,12 +543,14 @@
      :cell-aria-role {:camel "cellAriaRole" :type :string :default "'gridcell'" :doc "Used for screen reader announcements - the role property of the cells that belong to this column."}
      :children {:camel "children" :type :array :doc "A list containing a mix of columns and column groups."}
      :column-group-show {:camel "columnGroupShow" :type :object :doc "Whether to only show the column when the group is open / closed. If not set the column is always displayed as part of the group."}
+     :column-menu-items {:camel "columnMenuItems" :type :object :doc "Customise the menu items shown for this column group across the column menu, the Columns Tool Panel"}
      :context {:camel "context" :type :any :doc "Context property that can be used to associate arbitrary application data with this column definition."}
      :group-id {:camel "groupId" :type :string :doc "The unique ID to give the column. This is optional. If missing, a unique ID will be generated. This ID is used to identify the column group in the API."}
      :header-class {:camel "headerClass" :type :object :doc "CSS class to use for the header cell. Can be a string, array of strings, or function."}
      :header-group-component {:camel "headerGroupComponent" :type :any :doc "The custom header group component to be used for rendering the component header. If none specified the default AG Grid is used."}
      :header-group-component-params {:camel "headerGroupComponentParams" :type :any :doc "The params used to configure the `headerGroupComponent`."}
      :header-name {:camel "headerName" :type :string :doc "The name to render in the column header. If not specified and field is specified, the field name will be used as the header name."}
+     :header-name-editable {:camel "headerNameEditable" :type :boolean :default "false" :doc "Set to `true` to allow the user to edit this column's (or column group's) header name from the UI."}
      :header-style {:camel "headerStyle" :type :object :doc "An object of CSS values / or function returning an object of CSS values for a particular header."}
      :header-tooltip {:camel "headerTooltip" :type :string :doc "Tooltip for the column header, `headerTooltipValueGetter` takes precedence if set."}
      :header-tooltip-value-getter {:camel "headerTooltipValueGetter" :type :object :doc "Callback that should return the string to use for a tooltip."}
@@ -592,6 +606,7 @@
      :column-header-context-menu {:event "columnHeaderContextMenu" :handler "onColumnHeaderContextMenu"}
      :column-header-mouse-leave {:event "columnHeaderMouseLeave" :handler "onColumnHeaderMouseLeave"}
      :column-header-mouse-over {:event "columnHeaderMouseOver" :handler "onColumnHeaderMouseOver"}
+     :column-header-name-changed {:event "columnHeaderNameChanged" :handler "onColumnHeaderNameChanged"}
      :column-menu-visible-changed {:event "columnMenuVisibleChanged" :handler "onColumnMenuVisibleChanged"}
      :column-moved {:event "columnMoved" :handler "onColumnMoved"}
      :column-pinned {:event "columnPinned" :handler "onColumnPinned"}
