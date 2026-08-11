@@ -1,6 +1,7 @@
 # 0014. Documentation strategy: cljdoc canonical, docstring contracts, six topical articles
 
 - Status: accepted, 2026-07-22
+- Amended 2026-08-11: a seventh article, `docs/editable-grids.md`, added by ADR 0009 § Node operations — pending-rows (moved out of `docs/updating-data.md`), the rollback loop, and the server round-trip write-back. The range-fill batch-flush recipe stays in `docs/updating-data.md`.
 - Origin: knot ticket agd-01ky55neshd2 (tickets are ephemeral; this record is self-contained)
 
 cljdoc is the canonical documentation site: Markdown articles committed under `docs/`, tree curated via `doc/cljdoc.edn`, docstrings rendered as the API reference. Docstrings are the per-var contract for the 8 builders and the runtime fns; six topical articles carry the recipes earlier decisions assigned to docs; the generated `docs/reference/ag-grid-options.md` joins the tree as a machine-generated article.

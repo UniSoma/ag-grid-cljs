@@ -202,6 +202,12 @@ fallback is a *callback lookup* rule only — it does not rewrite row objects or
 column fields, so it cannot rescue a keyword `:field` pointed at a kebab-keyed
 row. Pick a row, pick the matching field.
 
+The pairing outlives the datasource. A later write into a row — merging a
+server's response back into `RowNode.data`, say — must use the same converter
+the row was built with, or it lands a ghost key beside the live one and a getter
+citing that name reads the ghost; see [Editable
+grids](editable-grids.md#write-with-the-converter-the-rows-were-built-with).
+
 Neither recipe is free: converting 100k rows measured ~600ms against ~9ms for
 supplying JS directly ([ADR 0003](adr/0003-row-data-js-by-contract.md)), which
 is why `#js` rows above are the primary path and these are the answer for

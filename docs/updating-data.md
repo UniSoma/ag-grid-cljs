@@ -132,42 +132,6 @@ Because AG Grid diffs by row id, this full swap is state-preserving: scroll,
 selection, and focus survive. Reach for `transact!` only when a hot path makes
 re-deriving the whole array measurably too expensive.
 
-## Recipe: optimistic pending rows
-
-A new-row form that shows the row *immediately*, lets the user fill it in, and
-only commits it to the real data set once it validates. The mechanism is AG
-Grid's **pinned top rows** (`:pinned-top-row-data`) plus an edit router keyed by
-a temporary row id. It is stateful, so it is a recipe, not a builder (ADR 0009);
-the state below is a plain atom, framework-agnostic — swap it for your
-framework's state cell unchanged.
-
-```clojure
-(def pending (atom nil))   ; the one draft row, or nil
-
-(defn new-draft [] #js {:id (str "tmp-" (random-uuid)) :name "" :salary nil})
-
-(defn temp? [row] (.startsWith (.-id row) "tmp-"))
-
-(defn start-draft! [handle]
-  (reset! pending (new-draft))
-  (ag/update-grid! handle {:pinned-top-row-data #js [@pending]}))
-
-;; route every edit: temp rows stay in the pinned buffer; once complete, they
-;; graduate into the real row set via a transaction and the pin clears.
-(defn on-cell-value-changed [handle e]
-  (let [row (:data e)]
-    (when (temp? row)
-      (if (complete? row)
-        (do (ag/transact! handle {:add [row] :add-index 0})
-            (reset! pending nil)
-            (ag/update-grid! handle {:pinned-top-row-data #js []}))
-        (reset! pending row)))))   ; still a draft — keep buffering edits
-```
-
-Wire the router as `:on-cell-value-changed` in your options. The persisted rows
-flow through the row channel (`transact!`); the draft never pollutes the real
-data set until it is ready.
-
 ## Recipe: batch-flush for fill and paste
 
 A single fill-handle drag or clipboard paste fires **one
@@ -206,3 +170,7 @@ stateful, again framework-agnostic (a plain atom).
 A lone edit (no surrounding gesture) persists straight away; a fill or paste
 collapses to a single `persist!` and a single `transact!`. The buffer is just a
 vector — nothing here is React- or Reagent-specific.
+
+What happens when that one write *fails*, plus the pending-rows recipe and
+landing a server's response back in a row, is [Editable
+grids](editable-grids.md).

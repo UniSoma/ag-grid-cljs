@@ -5,6 +5,7 @@
  [["Getting started"          {:file "docs/getting-started.md"}]
   ["Options and conversion"   {:file "docs/options-and-conversion.md"}]
   ["Updating data"            {:file "docs/updating-data.md"}]
+  ["Editable grids"           {:file "docs/editable-grids.md"}]
   ["Cell rendering"           {:file "docs/cell-rendering.md"}]
   ["Framework composition"    {:file "docs/framework-composition.md"}]
   ["Theming"                  {:file "docs/theming.md"}]
