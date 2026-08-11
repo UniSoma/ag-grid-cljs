@@ -48,6 +48,25 @@
               (js/setTimeout tick 25)
               (resolve nil)))))))))
 
+(defn poll-until
+  "Promise resolved once `pred` returns truthy, polled every 25ms until the
+  deadline (default 2s) — then resolved anyway, so the assertion that follows
+  reports the real shortfall instead of hanging the suite.
+
+  Use this rather than a fixed frame count whenever the thing being awaited is
+  an AG Grid event: AG Grid dispatches `cellValueChanged` and friends
+  asynchronously, in a batch, and whether one animation frame is enough for the
+  flush to land varies with machine load."
+  ([pred] (poll-until pred 2000))
+  ([pred timeout-ms]
+   (js/Promise.
+    (fn [resolve _]
+      (let [deadline (+ (js/Date.now) timeout-ms)]
+        ((fn tick []
+           (if (or (pred) (>= (js/Date.now) deadline))
+             (resolve nil)
+             (js/setTimeout tick 25)))))))))
+
 (defn await-microtask
   "Promise resolved at end of the current microtask queue — after the react
   cell-render flush lands (ag-grid-cljs.react batches cell renders into one

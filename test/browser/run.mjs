@@ -96,6 +96,9 @@ async function main() {
 
   const unexpectedErrors = [];
   page.on("console", (msg) => {
+    // cljs.test writes its per-assertion failure detail to the page console;
+    // without this forward a failing run only ever prints the summary counts.
+    console.log(`[browser:${msg.type()}] ${msg.text()}`);
     if (msg.type() === "error") {
       const text = msg.text();
       if (!isAllowlisted(text)) unexpectedErrors.push(text);

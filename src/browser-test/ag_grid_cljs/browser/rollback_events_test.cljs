@@ -47,7 +47,10 @@
                           (doseq [id ["1" "2" "3"]]
                             (let [^js node (.getRowNode api id)]
                               (.setDataValue node "salary" 0 "restore")))
-                          (u/next-frame)))
+                          ;; AG Grid flushes cellValueChanged asynchronously, in
+                          ;; one batch — @seen is still empty on return from the
+                          ;; writes. Wait for the batch, don't guess a frame.
+                          (u/poll-until #(<= 3 (count @seen)))))
                  (.then (fn [_]
                           (let [events @seen]
                             (is (= 3 (count events))
@@ -85,7 +88,7 @@
                  (.then (fn [_]
                           (let [^js node (.getRowNode api "1")]
                             (.setDataValue node "salary" 99))
-                          (u/next-frame)))
+                          (u/poll-until #(<= 1 (count @seen)))))
                  (.then (fn [_]
                           (is (= 1 (count @seen)))
                           (is (not= "restore" (first @seen))
