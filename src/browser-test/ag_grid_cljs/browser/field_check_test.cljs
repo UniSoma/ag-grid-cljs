@@ -86,6 +86,55 @@
                         (done)))
                (abort-on-throw restore! done)))))
 
+(defn- start-ag-grid-capture!
+  "Like start-capture!, but collecting AG Grid's OWN console.warn lines — the
+  destroyed-grid regression asserts upstream stays silent, which no seam inside
+  impl.warn can see."
+  []
+  (let [warnings (atom [])
+        orig js/console.warn]
+    (set! js/console.warn
+          (fn [& args]
+            (let [s (apply str args)]
+              (when (re-find #"^AG Grid" s) (swap! warnings conj s))
+              (apply orig args))))
+    [warnings (fn [] (set! js/console.warn orig))]))
+
+(deftest data-arriving-in-the-destroy-macrotask-stays-silent
+  (testing "modelUpdated is async-dispatched and a queued closure survives
+            listener removal, so a dispatch in the same macrotask as destroy!
+            runs the check against the dead grid — the isDestroyed guard must
+            keep it off the api (agd-01kzq9x25fez)"
+    (let [el (u/mount-el)
+          h  (grid/create-grid!
+              el (-> (grid/options)
+                     (grid/with-columns [{:field :name}])
+                     (grid/with-row-id :id)
+                     (grid/with-row-data #js [#js {:id 1 :name "Ada"}])))]
+      (async done
+             (let [captured (atom nil)]
+               (-> (u/next-frame)
+                   (.then (fn [_]
+                            (reset! captured (start-ag-grid-capture!))
+                            ;; dispatch (queued) and destroy in ONE macrotask
+                            (grid/transact! h {:add [#js {:id 2 :name "Bo"}]})
+                            (grid/destroy! h)
+                            ;; scheduled after the flush timer -> flush has run
+                            (js/Promise. (fn [resolve]
+                                           (js/setTimeout resolve 50)))))
+                   (.then (fn [_]
+                            (let [[warnings restore!] @captured]
+                              (restore!)
+                              (is (empty? (filterv #(re-find #"destroyed" %)
+                                                   @warnings))
+                                  "no destroyed-api warning from the queued check"))
+                            (u/detach! el)
+                            (done)))
+                   (.catch (fn [e]
+                             (when-let [[_ restore!] @captured] (restore!))
+                             (is false (str "chain rejected: " e))
+                             (done)))))))))
+
 (deftest silent-until-a-row-lands-then-fires-on-transaction
   (let [el (u/mount-el)
         [warnings restore!] (start-capture!)

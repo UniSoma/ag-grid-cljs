@@ -190,6 +190,22 @@
       (is (empty? (capture #(v/install-field-check! api))))
       (is (zero? (:for-each-node @calls)) "the row model was never touched"))))
 
+(deftest destroyed-grid-short-circuits-before-any-api-call
+  (testing "a listener firing after destroy touches nothing but isDestroyed —
+            modelUpdated is async-dispatched, so a queued closure can outlive
+            the grid (agd-01kzq9x25fez)"
+    (let [[api calls nodes destroyed?] (fake-api
+                                        {:columns [(fake-col #js {:field "fristName"})]
+                                         :nodes []})]
+      (is (empty? (capture #(v/install-field-check! api))))
+      (reset! nodes [(fake-node #js {:firstName "Ada"} false)])
+      (reset! destroyed? true)
+      (let [before (:get-columns @calls)]
+        (is (empty? (capture #(fire! calls "modelUpdated")))
+            "no warning from a dead grid")
+        (is (= before (:get-columns @calls))
+            "getColumns was never called — the guard returned first")))))
+
 (deftest resolved-fields-short-circuit-the-row-model
   (testing "every field resolved -> return before traversing the rows"
     (let [[api calls] (fake-api

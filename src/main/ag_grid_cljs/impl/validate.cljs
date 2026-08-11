@@ -336,12 +336,20 @@
   to `check!`. `getColumns` returns null until colModel.ready; the short-circuit
   keeps the steady state a set-membership test rather than a full forEachNode
   traversal, which matters because newColumnsLoaded also fires on sort and
-  resize."
+  resize.
+
+  The `isDestroyed` guard is not paranoia: modelUpdated and newColumnsLoaded are
+  async-dispatched (queued closures flushed from a setTimeout), and removing a
+  listener does not dequeue an already-queued closure — so an event dispatched
+  in the same macrotask as api.destroy() runs this check against the dead grid,
+  where any api call except isDestroyed prints AG Grid's ungated \"grid has been
+  destroyed\" warning."
   [^js api state targets-of check!]
-  (when-let [cols (.getColumns api)]
-    (let [targets (into [] (mapcat targets-of) cols)]
-      (when (some #(unresolved? state %) targets)
-        (check! state targets (first-row api))))))
+  (when-not (.isDestroyed api)
+    (when-let [cols (.getColumns api)]
+      (let [targets (into [] (mapcat targets-of) cols)]
+        (when (some #(unresolved? state %) targets)
+          (check! state targets (first-row api)))))))
 
 (defn- install-live-check!
   "Install one live-grid check: register `modelUpdated` (data arriving by any

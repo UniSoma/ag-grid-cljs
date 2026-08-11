@@ -53,14 +53,19 @@
   #js {:data data :group group?})
 
 (defn fake-api
-  "A fake GridApi, as `[api calls nodes]`. `:columns` nil models the
+  "A fake GridApi, as `[api calls nodes destroyed?]`. `:columns` nil models the
   pre-colModel.ready window; `nodes` is a mutable atom of what forEachNode
-  yields, so a test can land a row after installing and then fire a listener.
-  `calls` records the registered listeners and the two call counts."
+  yields, so a test can land a row after installing and then fire a listener;
+  `destroyed?` is a mutable atom answering isDestroyed, so a test can destroy
+  the grid after installing. `calls` records the registered listeners and the
+  two call counts."
   [{:keys [columns nodes]}]
   (let [nodes (atom (vec nodes))
+        destroyed? (atom false)
         calls (atom {:listeners [] :get-columns 0 :for-each-node 0})
-        api #js {:getColumns
+        api #js {:isDestroyed
+                 (fn [] @destroyed?)
+                 :getColumns
                  (fn []
                    (swap! calls update :get-columns inc)
                    (when columns (into-array columns)))
@@ -71,7 +76,7 @@
                  :addEventListener
                  (fn [event f]
                    (swap! calls update :listeners conj [event f]))}]
-    [api calls nodes]))
+    [api calls nodes destroyed?]))
 
 (defn fire!
   "Invoke the listener registered for `event` on a fake api's `calls` record."
