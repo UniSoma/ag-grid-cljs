@@ -1,25 +1,26 @@
 ---
 id: agd-01kzs8dexkb1
 title: 'ADR 0018 §2 overclaims: RowNode arguments are never beaned (class instances bypass the object? gate)'
-status: open
+status: closed
 type: bug
 priority: 2
 mode: afk
 created: '2026-08-11T20:32:23.987219117Z'
-updated: '2026-08-11T20:34:22.727616766Z'
+updated: '2026-08-11T20:54:55.353120989Z'
+closed: '2026-08-11T20:54:55.353120989Z'
 tags:
 - callbacks
 - docs
 - adr
 acceptance:
 - title: ADR 0018 §2 names the object? predicate and states class instances are raw
-  done: false
+  done: true
 - title: row-node-argument-data asserts the shipped behaviour against a class-instance fake
-  done: false
+  done: true
 - title: fake-node is a class instance
-  done: false
+  done: true
 - title: docs reach node data via (.-data node), not (:data node)
-  done: false
+  done: true
 ---
 
 ## Description
@@ -75,3 +76,7 @@ Decided (grilling, 2026-08-11): NO public unwrap ships. With class instances raw
 DONE ALREADY, out of this ticket: docs/options-and-conversion.md line ~240 rewritten — the "unwrap the backing JS object" sentence is gone, replaced by the rule "beans cover data, not AG Grid objects", (:node params) is a real RowNode you call methods on, and node rows are read via (.-data node), not (:data node).
 
 Remaining docs work here is the ADR 0018 §2 amendment plus a sweep of the event/callback article for the same overclaim.
+
+**2026-08-11T20:54:55.353120989Z**
+
+ADR 0018 §2 now names the cljs.core/object? gate and the rule BEANS COVER DATA, NOT AG GRID OBJECTS: RowNode/Column/GridApi arguments are class instances, never beaned, read with interop ((.-data node), not (:data node)). Context, §9, Consequences, Verification and one Considered option de-overclaimed; amendment marker added; same correction in ADR 0009/0010, CONTEXT.md and the wrap-fn docstring. No src/main behaviour change. test_support/fake-node is now a RowNodeFake deftype (a plain #js literal is object?-true and modelled the wrong side of the gate), and row-node-argument-data — which asserted the OPPOSITE of shipped behaviour and passed only because its node was a plain literal — is inverted and renamed row-node-argument-is-not-beaned. Characterization failure observed before inverting. Node suite 114/363 green, browser suite 19 tests/60 pass. Commit 84aa794.
