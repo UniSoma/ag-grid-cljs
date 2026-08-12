@@ -6,7 +6,7 @@ type: task
 priority: 3
 mode: afk
 created: '2026-07-28T17:44:51.519110458Z'
-updated: '2026-07-28T19:14:09.834482135Z'
+updated: '2026-08-12T18:03:59.852976441Z'
 closed: '2026-07-28T19:13:51.372254305Z'
 tags:
 - dx
@@ -26,6 +26,7 @@ acceptance:
   done: true
 links:
 - agd-01kymx7yf4dy
+- agd-01kzvjaeg3g7
 deps:
 - agd-01kymx7yf4dy
 ---

@@ -6,7 +6,7 @@ type: feature
 priority: 2
 mode: afk
 created: '2026-07-22T18:31:42.410482006Z'
-updated: '2026-07-22T19:50:08.631777686Z'
+updated: '2026-08-12T18:03:59.852976441Z'
 closed: '2026-07-22T19:50:08.631777686Z'
 acceptance:
 - title: changed updatable keys produce exactly one setGridOption each; unchanged and absent keys produce none
@@ -20,6 +20,8 @@ acceptance:
 deps:
 - agd-01ky5hj2mbj5
 - agd-01ky5hj2t2m9
+links:
+- agd-01kzvjaeg3g7
 ---
 
 ## Description

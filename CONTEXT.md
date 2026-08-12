@@ -36,6 +36,10 @@ _Avoid_: setter, option helper
 The generated, dev-only catalog of AG Grid option/event keys (`{:camel :type :default :initial? :deprecated :doc}`) powering typo warnings and the kebab↔camel reference table.
 _Avoid_: schema, spec layer
 
+**Handler key**:
+An options-map key naming an AG Grid event by its handler property (`:on-cell-clicked`) rather than by the event name (`cellClicked`). The registry catalogs events under the event name, so a handler key resolves through the `:events` block, never the `:grid-options` one.
+_Avoid_: event key, callback key, listener
+
 **Initial-only key**:
 A grid option AG Grid accepts only at creation; the differ warns once and ignores changes to it.
 _Avoid_: immutable option

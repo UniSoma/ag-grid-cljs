@@ -124,6 +124,24 @@
     (is (= 1 (count w)))
     (is (re-find #"not in the key registry" (first w)))))
 
+(deftest update-grid!-handler-keys-apply-silently
+  ;; ADR 0008 Classification amendment: handler keys are spelled by their handler
+  ;; property, so they resolve through the registry's :events block, not
+  ;; :grid-options. They classify :updatable unconditionally — an :events entry
+  ;; carries no :initial?, so there is no initial-only handler to preserve.
+  (let [f (fn [_])]
+    (doseq [k [:on-row-data-updated :on-first-data-rendered :on-cell-key-down
+               ;; a :col-def-block key too: it is absent from :grid-options like
+               ;; every other handler, and reaches :updatable the same way.
+               :on-cell-value-changed]]
+      (let [h (handle {})
+            w (capture #(grid/update-grid! h {k f}))
+            [[method prop val]] (set-grid-option-calls h)]
+        (is (= :set-grid-option method) (str k " applies via setGridOption"))
+        (is (= (convert/kebab->camel (name k)) prop))
+        (is (fn? val) "the handler is forward-converted, not dropped")
+        (is (= [] w) (str k " emits no warning"))))))
+
 (deftest update-grid!-column-defs-ships-whole-value
   (let [h (handle {:column-defs [{:field :a}]})]
     (grid/update-grid! h {:column-defs [{:field :a} {:field :b}]})

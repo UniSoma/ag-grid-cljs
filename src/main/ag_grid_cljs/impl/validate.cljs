@@ -105,17 +105,27 @@
   {:camels (block-camels block)
    :kebabs (vec (keys block))})
 
+(def handler-keys
+  "The registry's :events block indexed the way an options map spells it: the
+  kebab form of each entry's :handler (:on-cell-clicked), not the event name.
+  Every handler key is updatable — an :events entry carries no :initial? — which
+  is why core/classify resolves handler keys through this index (ADR 0008
+  Classification amendment). Dev-only and goog.DEBUG-gated like the registry it
+  derives from; nil in production builds. Reference it only from goog.DEBUG-
+  guarded code (ADR 0007 §1)."
+  (when ^boolean goog.DEBUG
+    (into #{} (map (comp keyword convert/camel->kebab :handler val))
+          (:events reg/registry))))
+
 (def ^:private grid-spec
   ;; Grid options also accept event-handler keys (:on-cell-clicked), whose valid
   ;; camel form is the registry's :handler ("onCellClicked") and whose
   ;; did-you-mean candidate is that handler's kebab form.
   (when ^boolean goog.DEBUG
     (let [go (:grid-options reg/registry)
-          ev (:events reg/registry)
-          handler-camels (map (comp :handler val) ev)
-          handler-kebabs (map (comp keyword convert/camel->kebab :handler val) ev)]
+          handler-camels (map (comp :handler val) (:events reg/registry))]
       {:camels (into (block-camels go) handler-camels)
-       :kebabs (into (vec (keys go)) handler-kebabs)})))
+       :kebabs (into (vec (keys go)) handler-keys)})))
 
 (def ^:private col-spec
   (when ^boolean goog.DEBUG (block-spec (:col-def reg/registry))))

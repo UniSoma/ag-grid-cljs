@@ -3,7 +3,7 @@
 - Status: accepted, 2026-07-21
 - Origin: knot ticket agd-01ky0edx8dzc (tickets are ephemeral; this record is self-contained)
 
-`create-grid!` returns a `GridHandle` `{:api :opts}`, and a new `update-grid! [handle new-opts]` is a PATCH/MERGE differ: per top-level key present in `new-opts`, compared by `=` uniformly, applying `setGridOption` only for changed keys. The registry's `:initial?` flag (ADR 0007) is the sole classifier of what is updatable; `:row-data` belongs to the explicit data channel; `:column-defs` is handed to AG Grid whole.
+`create-grid!` returns a `GridHandle` `{:api :opts}`, and a new `update-grid! [handle new-opts]` is a PATCH/MERGE differ: per top-level key present in `new-opts`, compared by `=` uniformly, applying `setGridOption` only for changed keys. The registry's `:initial?` flag (ADR 0007) classifies option keys, and presence in the registry's `:events` block classifies handler keys (see the Classification amendment below); `:row-data` belongs to the explicit data channel; `:column-defs` is handed to AG Grid whole.
 
 ## Context
 
@@ -27,6 +27,13 @@ Inputs consumed:
 
 Registry `:initial?` (ADR 0007) is the SOLE, trusted classifier: `false` -> updatable via `setGridOption`; `true` -> initial-only. No hand-maintained override list (rejected: re-introduces the maintenance treadmill). Mis-annotations get fixed in codegen, not in the differ.
 
+**Amendment (2026-08-12, ticket agd-01kzvjaeg3g7).** "Sole classifier" was written with only option keys in view and does not cover **handler keys** — keys spelled by their handler property (`:on-cell-key-down`), which the registry catalogs under the event name in its `:events` block, not in `:grid-options`. As written, every handler key missed the `:grid-options` lookup and classified `:unclassified`: applied correctly, but with a false "not in the key registry" warning. The classifier is therefore two lookups, tried in order:
+
+1. `:grid-options` -> `:initial?` decides updatable vs initial-only (unchanged).
+2. otherwise `:events`, matched by the entry's `:handler` in kebab form -> **updatable, unconditionally**. Handler entries carry no `:initial?` (codegen emits only `:event`/`:handler`), so there is no initial-only handler to preserve.
+
+Neither in either block -> `:unclassified`, unchanged. This widens the rule to a key class it never contemplated; it does not reverse it — no key that was updatable or initial-only changes class. The `:events`-derived handler index is the same one `impl.validate` already derives for its did-you-mean candidates (which is why unknown-key validation never flagged handler keys), shared rather than written twice, and stays behind `^boolean goog.DEBUG` so `:advanced` still eliminates the registry literal (ADR 0007 §1).
+
 ### Diff mechanism — PATCH/MERGE, per top-level key, compared by `=` uniformly (no function special-case)
 
 1. Iterate keys PRESENT in `new-opts`.
@@ -41,7 +48,7 @@ The stash after an update is MERGE(old stash, present new keys) -> it always ref
 - **Initial-only key changed**: dev-warn ONCE PER KEY (dedup set on the handle, mirroring the registry validation dedup of ADR 0007) + ignore. An opt-in recreate (`{:on-initial-change :recreate}`) was DEFERRED, not built — recreate is destructive of scroll/selection/focus/column state, contradicting the state-preservation premise.
 - **Data keys**: the differ IGNORES `:row-data` (owned by `set-rows!`/`transact!`, ADR 0004); dev-warn if it changed. `:column-defs` stays with the differ (config, not data).
 - **Unclassified changed key** (not in registry `:grid-options` — newer than the pin, or a typo): apply optimistically via `setGridOption` + dev-warn; never a hard block (consistent with "warn, never reject", ADR 0002; real typos are already caught by conversion-time did-you-mean, ADR 0007).
-- **Callbacks**: updatable where `:initial? false`; latest closure wins via `=`. The React "mount-once" stale-closure trap does NOT reproduce here — the consumer re-supplies opts (with fresh closures) each update, and `=` detects the new fn object and applies it. (Event-callback shape is ADR 0010.)
+- **Callbacks**: updatable — `:initial? false` for option-shaped callbacks, unconditionally for handler keys (see the Classification amendment); latest closure wins via `=`. The React "mount-once" stale-closure trap does NOT reproduce here — the consumer re-supplies opts (with fresh closures) each update, and `=` detects the new fn object and applies it. (Event-callback shape is ADR 0010.)
 
 ### Why `=` uniformly beat "always re-apply function options"
 
@@ -55,6 +62,7 @@ Documented as guidance, not differ logic:
 - Inline function values NESTED inside `:column-defs` make its structural `=` always-dirty -> full re-apply -> possible column-state reset. Use name-registered renderers / stable refs (ties to the renderer name-registration tier).
 - Memoized-stale callbacks (a stable fn ref closing over changed captured state) are unfixable by any differ policy -> the consumer must read live state at call time.
 - The `=` rule places a **counterpart obligation on the wrapper's own output**, stated in ADR 0021: every value the wrapper manufactures inside an options map must be `=` to itself given `=` inputs, or a consumer who rebuilds the map per render gets a dirty diff for values that never changed. The callback-stability guidance above is only the consumer's half.
+- Handler keys reach the differ far more often than they look like they would: every shadow-cljs hot reload of a namespace defining handler defns redefines those vars, so the rebuilt options map is genuinely `not=` at those keys and each one is pushed. Ordinary re-renders stay quiet because ns-level defns keep the map `=` there.
 - `update-grid!` is a PATCH op. True declarative full-state (absent = revert-to-default) would be a separate opt-in built on top; it was punted to the Reagent/UIx adapters question, and ADR 0012 subsequently ruled framework adapters out of v1 entirely.
 
 ## Considered options

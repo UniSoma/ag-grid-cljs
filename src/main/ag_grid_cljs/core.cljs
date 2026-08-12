@@ -382,16 +382,20 @@
 
 (defn- classify
   "Classify a top-level grid-option key as :updatable, :initial-only, or
-  :unclassified, using the registry's :initial? flag as the sole classifier
-  (ADR 0007/0008). The registry is dev-only and dead-code-eliminated in
-  production, so this reference sits inside a goog.DEBUG branch and every key
-  classifies :unclassified in production — where it applies optimistically and
-  AG Grid ignores any option it treats as initial-only."
+  :unclassified. Two ordered registry lookups (ADR 0007/0008): an option key
+  resolves in :grid-options, where :initial? decides updatable vs initial-only;
+  otherwise a handler key — spelled by its handler property, so cataloged under
+  the event name in :events — resolves in validate/handler-keys and is updatable
+  unconditionally, an :events entry carrying no :initial?. The registry is
+  dev-only and dead-code-eliminated in production, so both references sit inside
+  a goog.DEBUG branch and every key classifies :unclassified in production —
+  where it applies optimistically and AG Grid ignores any option it treats as
+  initial-only."
   [k]
   (if ^boolean goog.DEBUG
     (if-let [entry (get-in reg/registry [:grid-options k])]
       (if (:initial? entry) :initial-only :updatable)
-      :unclassified)
+      (if (contains? validate/handler-keys k) :updatable :unclassified))
     :unclassified))
 
 (defn update-grid!
@@ -402,8 +406,9 @@
   Returns the handle with its stash merged forward, so successive updates diff
   against the true applied state — thread the returned handle.
 
-  Per changed key (registry :initial? is the sole updatable-vs-initial-only
-  classifier):
+  Per changed key (an option key is classified by the registry's :initial? flag;
+  a handler key — one spelled by its handler property, `:on-cell-clicked` — is
+  always updatable, ADR 0008):
 
   - updatable      -> one `setGridOption` (key camelized, value forward-converted
                       via the conversion boundary, ADR 0005). `:column-defs` is
@@ -416,8 +421,10 @@
   - `:row-data`    -> ignored with a dev warning; the data channel owns it (use
                       `set-rows!` / `transact!`, ADR 0004).
   - unclassified   -> applied optimistically via `setGridOption` with a
-                      once-per-key dev warning (newer than the registry pin, or a
-                      typo already flagged by conversion-time validation).
+                      once-per-key dev warning (in neither the registry's
+                      :grid-options nor its :events block — newer than the
+                      registry pin, or a typo already flagged by conversion-time
+                      validation).
 
   All dev warnings are no-ops in production builds (goog.DEBUG false).
 

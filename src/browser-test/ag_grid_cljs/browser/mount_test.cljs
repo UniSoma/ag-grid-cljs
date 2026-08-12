@@ -20,10 +20,13 @@
                                                #js {:id 2 :name "Alan" :price 37}])))
           api (grid/grid-api h)]
       (async done
-             (-> (u/next-frame)
+             ;; select via AG Grid's first-party data-testid hooks (ADR 0015 §2),
+             ;; polled rather than awaited for one frame: TestIdService stamps on
+             ;; a debounce, so a single frame is a race this test lost once
+             ;; another grid ran ahead of it in the suite.
+             (-> (u/poll-testid el (.cell u/testid "1" "name"))
                  (.then (fn [_]
                           (is (= 2 (.getDisplayedRowCount api)))
-                          ;; select via AG Grid's first-party data-testid hooks (ADR 0015 §2)
                           (is (some? (u/by-testid el (.headerCell u/testid "name")))
                               "a header cell rendered into the DOM")
                           (is (some? (u/by-testid el (.cell u/testid "1" "name")))

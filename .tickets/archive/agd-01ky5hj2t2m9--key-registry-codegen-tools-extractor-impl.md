@@ -6,7 +6,7 @@ type: task
 priority: 2
 mode: afk
 created: '2026-07-22T18:31:42.146536103Z'
-updated: '2026-07-22T19:11:39.925049996Z'
+updated: '2026-08-12T18:03:59.852976441Z'
 closed: '2026-07-22T19:11:39.925049996Z'
 acceptance:
 - title: tools/ codegen runs against the installed ag-grid-community pin and is deterministic/idempotent
@@ -17,6 +17,8 @@ acceptance:
   done: true
 - title: registry def referenced only from goog.DEBUG-guarded code (DCE precondition)
   done: true
+links:
+- agd-01kzvjaeg3g7
 ---
 
 ## Description
