@@ -93,7 +93,12 @@ batching. The per-cell root also carries a hazard the helper handles for you —
 `destroy` calls `root.unmount()`, mandatory because a nested `createRoot` root is
 **not** unmounted with its parent and its effect cleanups never run (React issue
 #26281), amplified by virtualization. Mounting Reagent or UIx components into
-this tier is covered in [Framework composition](framework-composition.md).
+this tier is covered in [Framework composition](framework-composition.md). One
+more consequence of the per-cell root: it is **detached** from your app's React
+tree, so design-system components (Mantine, MUI, Chakra, …) that need a
+provider throw and paint an empty cell — see [Design-system components in
+cells](framework-composition.md#design-system-components-in-cells) for the
+provider-wrap recipe.
 
 ## Built-in renderers by name
 

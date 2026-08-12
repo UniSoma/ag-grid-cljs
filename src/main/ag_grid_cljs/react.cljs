@@ -18,6 +18,7 @@
   effect cleanups run after the grid is destroyed, for every caller — do not
   touch the grid api from a cleanup."
   (:require [ag-grid-cljs.impl.convert :as convert]
+            [ag-grid-cljs.impl.warn :as warn]
             ;; required for its :renderer construct method, the class builder
             [ag-grid-cljs.render]
             ["react-dom" :refer [flushSync]]
@@ -42,10 +43,35 @@
              (vreset! render-queue nil)
              (flushSync (fn [] (.forEach q (fn [t] (t)))))))))))
 
+;; An uncaught render error in a cell root unmounts the root, so the observable
+;; is always an empty cell — the warning has no false-positive case. Once per
+;; process per distinct error message (ADR 0022): the same missing provider
+;; throws in every visible cell of the column, and one diagnosis covers them.
+;; The provider-shaped hint fires on the "Provider was not found"-class messages
+;; design systems throw from a detached per-cell root.
+(defn- on-uncaught-render-error [error _error-info]
+  (let [msg (or (some-> error .-message) (str error))]
+    (warn/warn-once!
+     ::cell-render-error msg
+     "react-renderer cell threw during render; React unmounted the cell's "
+     "root, so the cell paints empty. Error: " msg
+     (when (re-find #"(?i)provider.*not.*found" msg)
+       (str "\nThis looks like a missing context provider: per-cell React "
+            "roots are detached from your app tree, so its providers do not "
+            "reach cell content. Wrap the render fn's output in the provider "
+            "it needs — see framework-composition.md, \"Design-system "
+            "components in cells\".")))))
+
 (defn- react-lifecycle [render-fn]
   {:init    (fn [state params]
               (let [el   (js/document.createElement "span")
-                    root (createRoot el)]
+                    ;; dev builds route uncaught cell render errors to the
+                    ;; warning above (replacing React's default logging for
+                    ;; these roots); production passes no options, keeping
+                    ;; React's default onUncaughtError (reportError)
+                    root (if ^boolean goog.DEBUG
+                           (createRoot el #js {:onUncaughtError on-uncaught-render-error})
+                           (createRoot el))]
                 (reset! state {:el el :root root})
                 ;; the destroyed guard covers a destroy landing between queue
                 ;; and drain — skip rendering into a root about to unmount

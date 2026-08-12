@@ -60,6 +60,57 @@ rather than freshly minted closures, so an unchanged rebuild diffs to nothing.
 See [Rebuilding the whole map is a supported
 shape](updating-data.md#rebuilding-the-whole-map-is-a-supported-shape).
 
+## Design-system components in cells
+
+Interactive cells in a React-hosted app are usually design-system components —
+and every mainstream design system (Mantine, MUI, Chakra, styled-components
+theming, react-intl, Redux) delivers its theme, store, or locale through a
+**provider**. React context does not cross roots, and each `react-renderer`
+cell is its own detached root, so a provider-requiring component **throws**
+inside a cell and the cell paints empty: React unmounts a root on an uncaught
+render error. Dev builds warn once per distinct error with a pointer back to
+this section; a production console shows only React's default `reportError`
+log, and the UI is silently empty.
+
+The supported shape is the **provider wrap**: wrap the render fn's output in
+the provider the cell content needs, with the provider's style-injection props
+turned off (your app tree already injected styles once), and define the wrapped
+renderer once at namespace level:
+
+```clojure
+;; provider inputs defined once — stable values, not rebuilt per cell render
+(def ^:private cell-theme (create-theme {...}))
+
+(defn- mantine-cell [render-fn]
+  (react/react-renderer
+   (fn [params]
+     (react/createElement MantineProvider
+                          #js {:theme cell-theme
+                               :withCssVariables false    ; style injection off:
+                               :withGlobalClasses false}  ; the app did it once
+                          (render-fn params)))))
+
+;; ONE def per wrapped renderer — never minted inline in a render fn
+(def ^:private status-cell (mantine-cell status-badge))
+(def ^:private type-cell   (mantine-cell type-icon))
+```
+
+The namespace-level `def` is the consumer's half of rebuild stability
+(ADR 0021): the renderer value stays `=` across options-map rebuilds, so
+`update-grid!` diffs it to nothing. A `(mantine-cell …)` call inlined in your
+own render path would mint a fresh renderer each time and re-ship
+`:column-defs` on every rebuild.
+
+The cost is real, so weigh it per column. Each visible cell mounts its own
+provider, which means cells *manage* what they should merely *consume* — a
+provider that watches color scheme, for instance, adds one listener and one
+writer per visible cell. And the wrap delivers context values only: your app's
+**error boundaries** still cannot reach into a detached cell root. For
+provider-based cell content at scale, a consumer-mounted **portal-host** tier —
+cells portal out of one host component rendered under your real providers, so
+context and error boundaries flow natively — is under evaluation; until it
+lands, this wrap is the supported pattern.
+
 ## The nested-`createRoot` caveat
 
 Each `react-renderer` cell is its own `createRoot`. A React root nested inside
