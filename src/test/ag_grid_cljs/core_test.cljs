@@ -319,7 +319,8 @@
              ["with-infinite-datasource" #(grid/with-infinite-datasource {} get-rows {:cache-block-size 50})]
              ["renderer"                 #(render/renderer {:init cell-init :get-gui cell-gui})]
              ["dom-renderer"             #(render/dom-renderer render-cell)]
-             ["react-renderer"           #(react/react-renderer render-cell)]]]
+             ["react-renderer"           #(react/react-renderer render-cell)]
+             ["portal-renderer"          #(react/portal-renderer render-cell)]]]
       (testing label
         (is (= (build) (build)))))))
 

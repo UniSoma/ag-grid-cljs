@@ -105,11 +105,15 @@ The cost is real, so weigh it per column. Each visible cell mounts its own
 provider, which means cells *manage* what they should merely *consume* — a
 provider that watches color scheme, for instance, adds one listener and one
 writer per visible cell. And the wrap delivers context values only: your app's
-**error boundaries** still cannot reach into a detached cell root. For
-provider-based cell content at scale, a consumer-mounted **portal-host** tier —
-cells portal out of one host component rendered under your real providers, so
-context and error boundaries flow natively — is under evaluation; until it
-lands, this wrap is the supported pattern.
+**error boundaries** still cannot reach into a detached cell root. When that
+cost bites — provider-based content at scale, or content your boundaries must
+be able to catch — move the column to the **portal tier**:
+[[ag-grid-cljs.react/portal-renderer]] cells render inside your own React tree
+through a [[ag-grid-cljs.react/portal-host]] you mount once under your real
+providers, so context *and* error boundaries flow natively with no wrap at all
+(ADR 0024; see [Tier 4](cell-rendering.md#tier-4--portal-renderer-cells-through-your-own-tree)).
+The wrap remains the supported pattern for provider-based content on the
+per-cell tier.
 
 ## The nested-`createRoot` caveat
 

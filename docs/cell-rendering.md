@@ -2,20 +2,21 @@
 
 A cell renderer decides what a cell's DOM looks like. AG Grid's native renderer
 interface is a component class (`init` / `getGui` / `refresh` / `destroy`);
-this library gives you **three tiers** over it, none of which owns a DOM-building
-engine (ADR 0011). Pick the lowest tier that does the job.
+this library gives you **four tiers** over it, none of which owns a DOM-building
+engine (ADR 0011, ADR 0024). Pick the lowest tier that does the job.
 
 | Tier | You write | Reach for it when |
 | --- | --- | --- |
 | Bare fn | `(fn [params] …)` | one-shot formatting, the vanilla escape hatch |
 | [[ag-grid-cljs.render/dom-renderer]] | `(fn [params] Node\|string)` | refresh-in-place DOM, BYO builder |
 | [[ag-grid-cljs.react/react-renderer]] | `(fn [params] react-element)` | a sparse column of interactive React |
+| [[ag-grid-cljs.react/portal-renderer]] | `(fn [params] react-element)` + a mounted `portal-host` | provider-based React cells (design systems) |
 
-Across all three, **params arrive as a lazy kebab-keyed bean** —
+Across all four, **params arrive as a lazy kebab-keyed bean** —
 `(:value p)`, `(:data p)`, `(:row-index p)` — the same view every callback gets
 (see [Options and conversion](options-and-conversion.md#callbacks-what-your-functions-receive-and-return)).
 
-The two helper tiers live in their own namespaces; the examples below assume:
+The helper tiers live in their own namespaces; the examples below assume:
 
 ```clojure
 (:require [ag-grid-cljs.core   :as ag]
@@ -98,7 +99,40 @@ more consequence of the per-cell root: it is **detached** from your app's React
 tree, so design-system components (Mantine, MUI, Chakra, …) that need a
 provider throw and paint an empty cell — see [Design-system components in
 cells](framework-composition.md#design-system-components-in-cells) for the
-provider-wrap recipe.
+provider-wrap recipe, or use Tier 4, where context flows natively.
+
+## Tier 4 — `portal-renderer` (cells through your own tree)
+
+[[ag-grid-cljs.react/portal-renderer]] renders cell content **inside your app's
+own React tree**: you mount [[ag-grid-cljs.react/portal-host]] once, anywhere
+under your providers, and every portal cell `createPortal`s its content from
+that host into AG Grid's cell DOM (ADR 0024). Providers — theme, locale,
+stores — **and your error boundaries** reach cell content natively, with zero
+wrapping or bridging; a design-system component just works in a cell.
+
+```clojure
+;; once, under your providers (any React-element syntax — raw, Reagent, UIx):
+(createElement MantineProvider #js {:theme app-theme}
+  (createElement app-shell)
+  (createElement react/portal-host))
+
+;; per column, exactly like the other tiers:
+{:header-name "Status"
+ :cell-renderer (react/portal-renderer (fn [p] (status-badge (:data p))))}
+```
+
+The host renders no DOM where it sits and serves every grid on the page; mount
+it **once** (a second concurrent host dev-warns and is inert). Cells created
+before the host mounts wait for it — they paint empty and dev builds warn after
+a macrotask ("portal cells waiting…"); there is deliberately **no fallback** to
+a detached per-cell root. As in Tier 3, content lands before paint (not on the
+call stack), and `refresh` updates the portal in place so component local state
+survives value refreshes. Unlike Tier 3 there is no per-cell React root at all,
+so the nested-`createRoot` unmount hazard does not exist on this tier.
+
+Choose between the React tiers by content: context-free interactive cells work
+identically on Tier 3 with no host to mount; provider-based content belongs on
+Tier 4.
 
 ## Built-in renderers by name
 

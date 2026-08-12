@@ -81,11 +81,19 @@ The explicit row-data path — `set-rows!` (full swap) and `transact!` (:add/:up
 _Avoid_: row sync
 
 **Renderer tiers**:
-The three cell-renderer levels: bare fn (vanilla escape hatch), `render/renderer` lifecycle map with `dom-renderer`, and `react/react-renderer` with a per-cell local React root.
+The four cell-renderer levels: bare fn (vanilla escape hatch), `render/renderer` lifecycle map with `dom-renderer`, `react/react-renderer` with a per-cell local React root, and `react/portal-renderer` rendering through the portal host.
+
+**Portal host**:
+The consumer-mounted React component (`react/portal-host`) every `portal-renderer` cell renders through — mounted once under the consumer's providers, it `createPortal`s cell content into AG Grid's cell DOM, so providers and error boundaries reach cells natively (ADR 0024). Discovered via a module-level registry, never through the options map; hostless cells wait with a dev warning, never falling back to a per-cell root.
+_Avoid_: host root, library host
 
 **Reference-consumer bar**:
 Fulcro as the proof target the design must satisfy without shipping any adapter code.
 _Avoid_: Fulcro support, Fulcro adapter
+
+**Field consumer**:
+The production consumer whose live-browser evidence drives submissions against the library — today the Agilis webapp. Distinct from the reference-consumer bar: the bar is a design-time proof target; the field consumer is a running app that files failures.
+_Avoid_: reference consumer (for Agilis), pilot app
 
 **Walking skeleton**:
 The committed proof code in `src/main`, `src/dev`, and `src/test` that retired the five risk points; the scaffold implementation evolves in place.

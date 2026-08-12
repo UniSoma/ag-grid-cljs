@@ -46,6 +46,8 @@ No wrapper-level typed-renderer catalog ships. Mantine DataTable precedent: none
 
   **Correction, 2026-08-11 (agd-01kzr7wehb0d, ADR 0023).** Tier 4's "`createRoot` in `init` + `flushSync` render" and the "`flushSync` defeats batching" consequence describe the original scheduling, not today's: cell renders are now queued and drained in ONE `flushSync` per microtask, so content lands before paint rather than on the caller's stack, and a refresh driven from inside a React commit (e.g. `refreshCells` from a `useEffect`) no longer prints React's DEV flushSync-from-lifecycle error per cell. The portal option below ("deferred to the Fulcro skeleton ticket") is **closed** by ADR 0023 — its deferral criterion had been met (ADR 0012), and the measured case for it did not survive the batched flush.
 
+  **Correction, 2026-08-12 (agd-01kzva6hgxq5, ADR 0024).** "The library commits to three renderer tiers" is no longer the full set: a fourth tier, `react/portal-renderer` + `react/portal-host` (consumer-mounted host, `createPortal` per cell), ships beside the per-cell React root for provider-based cell content — providers and error boundaries flow from the consumer's own tree, which no per-cell root can inherit. The per-cell tier stands unchanged; ADR 0023's closure holds for the library-created variant it measured. See ADR 0024.
+
 ## Considered options
 
 - **A mini hiccup->DOM engine vendored in the library** (a ~40-line engine with `:style` maps and `on-*` event fns was built and headless-verified in the skeleton) — cut: dialect trap versus real hiccup, maintenance treadmill, and BYO engines compose at the fn level (pluggable-by-composition beats a global config slot). `dom-renderer` ships engine-free instead.

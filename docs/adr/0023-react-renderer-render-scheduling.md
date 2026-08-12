@@ -39,6 +39,8 @@ The spike (browser harness: a real React FC whose `useEffect`s create the grid, 
 - `CONTEXT.md` is unchanged: the *Renderer tiers* entry stays true (a per-cell local React root), and the flush scheduling is an implementation detail beneath the glossary.
 - Context opacity of per-cell roots (no provider/error-boundary inheritance from the consumer's tree) remains, as it would have under a library-created portal host; making context flow is a separate, consumer-facing API question this ADR deliberately does not open.
 
+  **Pointer, 2026-08-12 (agd-01kzva6hgxq5, ADR 0024).** That separate question is now opened and answered: ADR 0024 ships a CONSUMER-mounted portal host (`react/portal-host` + `react/portal-renderer`) as a tier beside the per-cell roots. This does not disturb what this ADR closed — the design rejected here was a *library-created* host root, whose context-transparency claim genuinely fails, and this kill rule never measured context inheritance; ADR 0024's did.
+
 ## Considered options
 
 - **Status quo (per-cell `flushSync` on the caller's stack)** — rejected: one DEV error per live cell on every `refreshCells` from a commit, and N synchronous render passes where one suffices. The submission was right that consumers cannot fix this from outside.
