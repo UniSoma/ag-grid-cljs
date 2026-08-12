@@ -35,4 +35,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Browser test suite
+        # Compiled in by the license-key macro (browser/modules.cljs); absent
+        # (e.g. fork PRs, where secrets are withheld) the suite runs the
+        # no-license path and allowlists AG Grid's banner.
+        env:
+          AG_GRID_LICENSE: ${{ secrets.AG_GRID_LICENSE }}
         run: npm run test:browser
