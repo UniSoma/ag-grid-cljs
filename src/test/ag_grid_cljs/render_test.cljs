@@ -20,10 +20,10 @@
       (is (fn? klass)))
     (testing "AG Grid's component detection: prototype && 'getGui' in prototype"
       (is (some? (.-prototype klass)))
-      (is (fn? (.. klass -prototype -getGui)))
-      (is (fn? (.. klass -prototype -init)))
-      (is (fn? (.. klass -prototype -refresh)))
-      (is (fn? (.. klass -prototype -destroy))))))
+      (is (fn? (.. ^js klass -prototype -getGui)))
+      (is (fn? (.. ^js klass -prototype -init)))
+      (is (fn? (.. ^js klass -prototype -refresh)))
+      (is (fn? (.. ^js klass -prototype -destroy))))))
 
 (deftest lifecycle-fns-receive-state-and-bean-params
   (let [seen  (atom nil)
@@ -72,8 +72,8 @@
     (testing "the converted value is a component class, as create-grid! needs"
       (let [klass (converted-class r)]
         (is (fn? klass))
-        (is (fn? (.. klass -prototype -getGui)))
-        (is (fn? (.. klass -prototype -refresh)))))))
+        (is (fn? (.. ^js klass -prototype -getGui)))
+        (is (fn? (.. ^js klass -prototype -refresh)))))))
 
 (deftest refresh-contract
   (testing "absent :refresh -> false (grid re-inits)"

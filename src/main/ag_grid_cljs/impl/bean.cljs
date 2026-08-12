@@ -753,7 +753,7 @@
 
 (defn ^js object
   "Takes a bean and returns a JavaScript object."
-  [b]
+  [^Bean b]
   (.-obj b))
 
 (defn ->clj

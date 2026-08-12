@@ -35,7 +35,7 @@
                 ;; a JS constructor returning an object hijacks `new`;
                 ;; return nil so `new` yields the instance itself
                 nil)
-        proto (.-prototype ctor)]
+        proto ^js (.-prototype ctor)]
     (set! (.-init proto)
           (fn [params]
             (this-as ^js t (init (.-agCljsState t) (convert/params-bean params)))

@@ -39,7 +39,7 @@
   The col id defaults to the ColDef's `:colId` or `:field`, as AG Grid's own
   fallback does."
   ([col-def] (fake-col col-def false false))
-  ([col-def field-dots? tooltip-dots?]
+  ([^js col-def field-dots? tooltip-dots?]
    #js {:getColDef                  (fn [] col-def)
         :getColId                   (fn [] (or (.-colId col-def)
                                                (.-field col-def)))

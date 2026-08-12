@@ -89,14 +89,14 @@
                                      (.render root (render-fn params))))))
    :get-gui (fn [state] (:el @state))
    :refresh (fn [state params]
-              (let [root (:root @state)]
+              (let [^js root (:root @state)]
                 (schedule-render! #(when-not (:destroyed @state)
                                      (.render root (render-fn params)))))
               true)
    ;; deferred so a destroy inside a React commit doesn't warn (ns docstring);
    ;; double-unmount is a no-op, so a late microtask racing a re-destroy is safe
    :destroy (fn [state]
-              (when-let [root (:root @state)]
+              (when-let [^js root (:root @state)]
                 (swap! state assoc :destroyed true)
                 (js/queueMicrotask #(.unmount root))))})
 
