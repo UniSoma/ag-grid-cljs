@@ -58,6 +58,18 @@
                 (.. t -props -children)))))
     ctor))
 
+(defn- license-noise?
+  "AG Grid's no-license Enterprise banner, printed via console.error when no
+  AG_GRID_LICENSE key was compiled in (the CI path — see browser.modules).
+  Mirrors the driver tripwire's allowlist (test/browser/run.mjs) so the
+  console.error captures below assert on real errors only."
+  [s]
+  (boolean (or (re-find #"(?i)ag grid enterprise" s)
+               (re-find #"(?i)enterprise license" s)
+               (re-find #"(?i)license key" s)
+               (re-find #"(?i)watermark" s)
+               (re-find #"\*{5,}" s))))
+
 (defn- poll-count
   "Promise resolved once `n` elements match `sel` under `root` (nil payload on
   timeout; the caller's assertion reports the shortfall)."
@@ -209,9 +221,10 @@
                           (u/next-frame)))
                  (.then (fn [_]
                           (set! (.-error js/console) orig-error)
-                          (is (= [] @errors)
-                              (str "zero DEV console errors across all legs, got: "
-                                   (pr-str @errors)))
+                          (let [real (remove license-noise? @errors)]
+                            (is (empty? real)
+                                (str "zero DEV console errors across all legs, got: "
+                                     (pr-str real))))
                           (u/detach! el)
                           (done))))))))
 
@@ -279,7 +292,8 @@
                           (is (= boom-msg
                                  (some-> (.querySelector el ".eb-fallback") .-textContent))
                               "the consumer boundary's fallback rendered with the cell's error")
-                          (is (every? #(str/includes? % boom-msg) @errors)
+                          (is (every? #(str/includes? % boom-msg)
+                                      (remove license-noise? @errors))
                               "the only console errors are React's DEV log of the CAUGHT error")
                           (.unmount host-root)
                           (u/next-frame)))
