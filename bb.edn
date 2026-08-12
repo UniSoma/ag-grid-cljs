@@ -1,5 +1,15 @@
 {:tasks
- {bench
+ {test
+  {:doc "Run both suites the way CI does: node tests, then the browser suite."
+   :task (do
+           (println "=== node suite ===")
+           (shell "npx shadow-cljs compile test")
+           (shell "node target/node-tests.js")
+           (println "\n=== browser suite ===")
+           (shell "npx shadow-cljs compile browser-test")
+           (shell "node test/browser/run.mjs"))}
+
+  bench
   {:doc "Run the key-transform/callback-bean microbenchmarks in dev and release (ticket agd-01kygjftnhwa)."
    :task (do
            (println "=== dev build (goog.DEBUG=true, no optimizations) ===")
